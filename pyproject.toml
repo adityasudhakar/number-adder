@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "number-adder"
+version = "0.2.0"
+description = "A simple number adding service with GDPR compliance"
+readme = "README.md"
+requires-python = ">=3.8"
+license = "MIT"
+authors = [
+    {name = "Your Name", email = "you@example.com"}
+]
+dependencies = [
+    "fastapi>=0.104.0",
+    "uvicorn>=0.24.0",
+    "bcrypt>=4.0.0",
+    "python-jose[cryptography]>=3.3.0",
+    "pydantic[email]>=2.0.0",
+]
+
+[project.scripts]
+number-adder = "number_adder.cli:main"
+number-adder-server = "number_adder.server:main"
