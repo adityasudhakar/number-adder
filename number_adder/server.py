@@ -12,7 +12,7 @@ import bcrypt
 from jose import jwt, JWTError
 import uvicorn
 
-from number_adder import add
+from number_adder import add, multiply
 from number_adder import database as db
 
 # Configuration
@@ -53,6 +53,17 @@ class AddRequest(BaseModel):
 
 
 class AddResponse(BaseModel):
+    a: float
+    b: float
+    result: float
+
+
+class MultiplyRequest(BaseModel):
+    a: float
+    b: float
+
+
+class MultiplyResponse(BaseModel):
     a: float
     b: float
     result: float
@@ -129,9 +140,23 @@ def add_numbers(
     result = add(request.a, request.b)
 
     # Save to history
-    db.save_calculation(user_id, request.a, request.b, result)
+    db.save_calculation(user_id, request.a, request.b, result, operation="add")
 
     return AddResponse(a=request.a, b=request.b, result=result)
+
+
+@app.post("/multiply", response_model=MultiplyResponse)
+def multiply_numbers(
+    request: MultiplyRequest,
+    user_id: Annotated[int, Depends(get_current_user_id)]
+):
+    """Multiply two numbers (requires authentication)."""
+    result = multiply(request.a, request.b)
+
+    # Save to history
+    db.save_calculation(user_id, request.a, request.b, result, operation="multiply")
+
+    return MultiplyResponse(a=request.a, b=request.b, result=result)
 
 
 @app.get("/history")

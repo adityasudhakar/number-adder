@@ -46,6 +46,7 @@ def init_db():
             CREATE TABLE IF NOT EXISTS calculations (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 user_id INTEGER NOT NULL,
+                operation TEXT NOT NULL DEFAULT 'add',
                 num_a REAL NOT NULL,
                 num_b REAL NOT NULL,
                 result REAL NOT NULL,
@@ -99,13 +100,13 @@ def delete_user(user_id: int) -> bool:
 
 
 # Calculation operations
-def save_calculation(user_id: int, num_a: float, num_b: float, result: float) -> int:
+def save_calculation(user_id: int, num_a: float, num_b: float, result: float, operation: str = "add") -> int:
     """Save a calculation and return its ID."""
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute(
-            "INSERT INTO calculations (user_id, num_a, num_b, result) VALUES (?, ?, ?, ?)",
-            (user_id, num_a, num_b, result)
+            "INSERT INTO calculations (user_id, operation, num_a, num_b, result) VALUES (?, ?, ?, ?, ?)",
+            (user_id, operation, num_a, num_b, result)
         )
         return cursor.lastrowid
 
@@ -115,7 +116,7 @@ def get_user_calculations(user_id: int) -> list[dict]:
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute(
-            "SELECT id, num_a, num_b, result, created_at FROM calculations WHERE user_id = ? ORDER BY created_at DESC",
+            "SELECT id, operation, num_a, num_b, result, created_at FROM calculations WHERE user_id = ? ORDER BY created_at DESC",
             (user_id,)
         )
         return [dict(row) for row in cursor.fetchall()]
