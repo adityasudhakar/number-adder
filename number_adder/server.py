@@ -4,12 +4,13 @@ import os
 from datetime import datetime, timedelta
 from typing import Annotated
 
-from fastapi import FastAPI, HTTPException, Depends, status
+from fastapi import FastAPI, HTTPException, Depends, status, Request, Header
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, EmailStr
 import bcrypt
 from jose import jwt, JWTError
+import stripe
 import uvicorn
 
 from number_adder import add, multiply
@@ -19,6 +20,11 @@ from number_adder import database as db
 SECRET_KEY = os.environ.get("SECRET_KEY", "dev-secret-key-change-in-production")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24  # 24 hours
+
+# Stripe configuration
+stripe.api_key = os.environ.get("STRIPE_SECRET_KEY", "")
+STRIPE_WEBHOOK_SECRET = os.environ.get("STRIPE_WEBHOOK_SECRET", "")
+STRIPE_PRICE_ID = os.environ.get("STRIPE_PRICE_ID", "")  # Price ID for premium upgrade
 
 # Security
 security = HTTPBearer()
@@ -150,7 +156,15 @@ def multiply_numbers(
     request: MultiplyRequest,
     user_id: Annotated[int, Depends(get_current_user_id)]
 ):
-    """Multiply two numbers (requires authentication)."""
+    """Multiply two numbers (requires premium subscription)."""
+    # Check if user is premium
+    user = db.get_user_by_id(user_id)
+    if not user or not user.get("is_premium"):
+        raise HTTPException(
+            status_code=403,
+            detail="Premium subscription required. Use /create-checkout-session to upgrade."
+        )
+
     result = multiply(request.a, request.b)
 
     # Save to history
@@ -164,6 +178,76 @@ def get_history(user_id: Annotated[int, Depends(get_current_user_id)]):
     """Get calculation history for current user."""
     calculations = db.get_user_calculations(user_id)
     return {"calculations": calculations}
+
+
+# Stripe endpoints
+@app.post("/create-checkout-session")
+def create_checkout_session(
+    user_id: Annotated[int, Depends(get_current_user_id)],
+    success_url: str = "https://example.com/success",
+    cancel_url: str = "https://example.com/cancel"
+):
+    """Create a Stripe checkout session for premium upgrade."""
+    if not stripe.api_key:
+        raise HTTPException(status_code=500, detail="Stripe not configured")
+
+    user = db.get_user_by_id(user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    if user.get("is_premium"):
+        raise HTTPException(status_code=400, detail="Already premium")
+
+    # Get or create Stripe customer
+    customer_id = user.get("stripe_customer_id")
+    if not customer_id:
+        customer = stripe.Customer.create(email=user["email"])
+        customer_id = customer.id
+        db.set_stripe_customer_id(user_id, customer_id)
+
+    # Create checkout session
+    session = stripe.checkout.Session.create(
+        customer=customer_id,
+        payment_method_types=["card"],
+        line_items=[{
+            "price": STRIPE_PRICE_ID,
+            "quantity": 1,
+        }],
+        mode="payment",
+        success_url=success_url,
+        cancel_url=cancel_url,
+        metadata={"user_id": str(user_id)},
+    )
+
+    return {"checkout_url": session.url, "session_id": session.id}
+
+
+@app.post("/webhook")
+async def stripe_webhook(request: Request):
+    """Handle Stripe webhook events."""
+    if not STRIPE_WEBHOOK_SECRET:
+        raise HTTPException(status_code=500, detail="Webhook not configured")
+
+    payload = await request.body()
+    sig_header = request.headers.get("stripe-signature")
+
+    try:
+        event = stripe.Webhook.construct_event(
+            payload, sig_header, STRIPE_WEBHOOK_SECRET
+        )
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid payload")
+    except stripe.error.SignatureVerificationError:
+        raise HTTPException(status_code=400, detail="Invalid signature")
+
+    # Handle successful payment
+    if event["type"] == "checkout.session.completed":
+        session = event["data"]["object"]
+        user_id = session.get("metadata", {}).get("user_id")
+        if user_id:
+            db.upgrade_user_to_premium(int(user_id))
+
+    return {"status": "success"}
 
 
 # GDPR endpoints

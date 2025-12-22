@@ -37,6 +37,8 @@ def init_db():
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 email TEXT UNIQUE NOT NULL,
                 password_hash TEXT NOT NULL,
+                is_premium INTEGER NOT NULL DEFAULT 0,
+                stripe_customer_id TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
@@ -84,7 +86,32 @@ def get_user_by_id(user_id: int) -> dict | None:
     """Get user by ID."""
     with get_db() as conn:
         cursor = conn.cursor()
-        cursor.execute("SELECT id, email, created_at FROM users WHERE id = ?", (user_id,))
+        cursor.execute("SELECT id, email, is_premium, stripe_customer_id, created_at FROM users WHERE id = ?", (user_id,))
+        row = cursor.fetchone()
+        return dict(row) if row else None
+
+
+def upgrade_user_to_premium(user_id: int) -> bool:
+    """Upgrade a user to premium."""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("UPDATE users SET is_premium = 1 WHERE id = ?", (user_id,))
+        return cursor.rowcount > 0
+
+
+def set_stripe_customer_id(user_id: int, customer_id: str) -> bool:
+    """Set the Stripe customer ID for a user."""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("UPDATE users SET stripe_customer_id = ? WHERE id = ?", (customer_id, user_id))
+        return cursor.rowcount > 0
+
+
+def get_user_by_stripe_customer_id(customer_id: str) -> dict | None:
+    """Get user by Stripe customer ID."""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT id, email, is_premium, stripe_customer_id, created_at FROM users WHERE stripe_customer_id = ?", (customer_id,))
         row = cursor.fetchone()
         return dict(row) if row else None
 
@@ -135,6 +162,7 @@ def export_user_data(user_id: int) -> dict:
         "user": {
             "id": user["id"],
             "email": user["email"],
+            "is_premium": bool(user["is_premium"]),
             "created_at": user["created_at"]
         },
         "calculations": calculations,

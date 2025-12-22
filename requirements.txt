@@ -5,4 +5,5 @@ fastapi==0.125.0
 pydantic==2.12.5
 pydantic_core==2.41.5
 python-jose==3.5.0
+stripe==11.4.1
 uvicorn==0.38.0
