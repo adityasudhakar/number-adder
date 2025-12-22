@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Payment Cancelled - Number Adder</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f5; min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+        .container { text-align: center; padding: 40px 20px; max-width: 400px; }
+        .icon { width: 80px; height: 80px; background: #6c757d; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 20px; }
+        .icon svg { width: 40px; height: 40px; fill: white; }
+        h1 { color: #333; margin-bottom: 10px; }
+        p { color: #666; margin-bottom: 30px; font-size: 18px; }
+        .buttons { display: flex; gap: 15px; justify-content: center; flex-wrap: wrap; }
+        button { padding: 15px 30px; border: none; border-radius: 4px; font-size: 16px; cursor: pointer; }
+        .primary { background: #007bff; color: white; }
+        .primary:hover { background: #0056b3; }
+        .secondary { background: white; color: #333; border: 1px solid #ddd; }
+        .secondary:hover { background: #f5f5f5; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="icon">
+            <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z"/></svg>
+        </div>
+        <h1>Payment Cancelled</h1>
+        <p>No worries! You can upgrade anytime when you're ready.</p>
+
+        <div class="buttons">
+            <button class="primary" onclick="window.location.href='/pricing.html'">View Pricing</button>
+            <button class="secondary" onclick="window.location.href='/dashboard.html'">Back to Dashboard</button>
+        </div>
+    </div>
+</body>
+</html>

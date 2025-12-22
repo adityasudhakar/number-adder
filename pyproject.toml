@@ -19,6 +19,7 @@ dependencies = [
     "python-jose[cryptography]>=3.3.0",
     "pydantic[email]>=2.0.0",
     "stripe>=7.0.0",
+    "httpx>=0.25.0",
 ]
 
 [project.scripts]

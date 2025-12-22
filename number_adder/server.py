@@ -4,9 +4,11 @@ import os
 from datetime import datetime, timedelta
 from typing import Annotated
 
+from pathlib import Path
 from fastapi import FastAPI, HTTPException, Depends, status, Request, Header
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, FileResponse, RedirectResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, EmailStr
 import bcrypt
 from jose import jwt, JWTError
@@ -25,6 +27,14 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24  # 24 hours
 stripe.api_key = os.environ.get("STRIPE_SECRET_KEY", "")
 STRIPE_WEBHOOK_SECRET = os.environ.get("STRIPE_WEBHOOK_SECRET", "")
 STRIPE_PRICE_ID = os.environ.get("STRIPE_PRICE_ID", "")  # Price ID for premium upgrade
+
+# Google OAuth configuration
+GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID", "")
+GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET", "")
+GOOGLE_REDIRECT_URI = os.environ.get("GOOGLE_REDIRECT_URI", "http://localhost:8000/auth/google/callback")
+
+# Static files directory
+STATIC_DIR = Path(__file__).parent / "static"
 
 # Security
 security = HTTPBearer()
@@ -288,6 +298,104 @@ def delete_my_account(user_id: Annotated[int, Depends(get_current_user_id)]):
 def health():
     """Health check endpoint."""
     return {"status": "healthy"}
+
+
+# Google OAuth endpoints
+@app.get("/auth/google")
+def google_login():
+    """Redirect to Google OAuth."""
+    if not GOOGLE_CLIENT_ID:
+        raise HTTPException(status_code=500, detail="Google OAuth not configured")
+
+    google_auth_url = (
+        "https://accounts.google.com/o/oauth2/v2/auth"
+        f"?client_id={GOOGLE_CLIENT_ID}"
+        f"&redirect_uri={GOOGLE_REDIRECT_URI}"
+        "&response_type=code"
+        "&scope=email%20profile"
+        "&access_type=offline"
+    )
+    return RedirectResponse(url=google_auth_url)
+
+
+@app.get("/auth/google/callback")
+async def google_callback(code: str):
+    """Handle Google OAuth callback."""
+    import httpx
+
+    if not GOOGLE_CLIENT_ID or not GOOGLE_CLIENT_SECRET:
+        raise HTTPException(status_code=500, detail="Google OAuth not configured")
+
+    # Exchange code for tokens
+    async with httpx.AsyncClient() as client:
+        token_response = await client.post(
+            "https://oauth2.googleapis.com/token",
+            data={
+                "code": code,
+                "client_id": GOOGLE_CLIENT_ID,
+                "client_secret": GOOGLE_CLIENT_SECRET,
+                "redirect_uri": GOOGLE_REDIRECT_URI,
+                "grant_type": "authorization_code",
+            },
+        )
+
+        if token_response.status_code != 200:
+            raise HTTPException(status_code=400, detail="Failed to get tokens from Google")
+
+        tokens = token_response.json()
+        access_token = tokens.get("access_token")
+
+        # Get user info
+        user_response = await client.get(
+            "https://www.googleapis.com/oauth2/v2/userinfo",
+            headers={"Authorization": f"Bearer {access_token}"},
+        )
+
+        if user_response.status_code != 200:
+            raise HTTPException(status_code=400, detail="Failed to get user info from Google")
+
+        user_info = user_response.json()
+        email = user_info.get("email")
+
+        if not email:
+            raise HTTPException(status_code=400, detail="Email not provided by Google")
+
+        # Find or create user
+        db_user = db.get_user_by_email(email)
+        if not db_user:
+            # Create new user with random password (they'll use OAuth to login)
+            import secrets
+            random_password = secrets.token_urlsafe(32)
+            password_hash = hash_password(random_password)
+            user_id = db.create_user(email, password_hash)
+        else:
+            user_id = db_user["id"]
+
+        # Create JWT token
+        token = create_access_token(user_id)
+
+        # Redirect to dashboard with token
+        return RedirectResponse(
+            url=f"/dashboard.html?token={token}",
+            status_code=302
+        )
+
+
+# Serve static files
+@app.get("/")
+def serve_index():
+    """Serve the landing page."""
+    return FileResponse(STATIC_DIR / "index.html")
+
+
+@app.get("/{filename:path}")
+def serve_static(filename: str):
+    """Serve static files."""
+    file_path = STATIC_DIR / filename
+    if file_path.exists() and file_path.is_file():
+        return FileResponse(file_path)
+    # If file not found, return index.html for SPA routing
+    return FileResponse(STATIC_DIR / "index.html")
 
 
 def main():
