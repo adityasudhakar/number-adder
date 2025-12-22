@@ -47,6 +47,13 @@ When you delete your account:
 - All your calculation history is immediately deleted
 - This action is irreversible
 
+## Data Retention
+
+- **Active accounts**: Data retained while account is active
+- **Deleted accounts**: All data permanently deleted immediately upon account deletion
+- **No backups**: We do not retain backups of deleted user data
+- **No third-party sharing**: Your data is never sold or shared with third parties
+
 ## Data Security
 
 - Passwords are hashed using bcrypt (never stored in plain text)
