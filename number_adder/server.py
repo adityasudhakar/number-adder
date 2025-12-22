@@ -43,7 +43,7 @@ security = HTTPBearer()
 app = FastAPI(
     title="Number Adder API",
     description="A simple number adding service with GDPR compliance",
-    version="0.2.0"
+    version="0.3.0"
 )
 
 

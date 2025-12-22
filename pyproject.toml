@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "number-adder"
-version = "0.2.0"
+version = "0.3.0"
 description = "A simple number adding service with GDPR compliance"
 readme = "README.md"
 requires-python = ">=3.8"
@@ -25,3 +25,6 @@ dependencies = [
 [project.scripts]
 number-adder = "number_adder.cli:main"
 number-adder-server = "number_adder.server:main"
+
+[tool.setuptools.package-data]
+number_adder = ["static/*.html"]
