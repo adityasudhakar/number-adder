@@ -391,6 +391,46 @@ async def google_callback(code: str):
         )
 
 
+class GoogleTokenRequest(BaseModel):
+    id_token: str
+
+
+@app.post("/auth/google/mobile")
+async def google_mobile_auth(request: GoogleTokenRequest):
+    """Authenticate with Google ID token (for mobile apps)."""
+    try:
+        # Verify the ID token with Google
+        async with httpx.AsyncClient() as client:
+            response = await client.get(
+                f"https://oauth2.googleapis.com/tokeninfo?id_token={request.id_token}"
+            )
+            if response.status_code != 200:
+                raise HTTPException(status_code=400, detail="Invalid Google token")
+
+            token_info = response.json()
+            email = token_info.get("email")
+
+            if not email:
+                raise HTTPException(status_code=400, detail="Email not in token")
+
+            # Find or create user
+            db_user = db.get_user_by_email(email)
+            if not db_user:
+                import secrets
+                random_password = secrets.token_urlsafe(32)
+                password_hash = hash_password(random_password)
+                user_id = db.create_user(email, password_hash)
+            else:
+                user_id = db_user["id"]
+
+            # Create JWT token
+            token = create_access_token(user_id)
+
+            return {"access_token": token, "token_type": "bearer"}
+    except httpx.RequestError:
+        raise HTTPException(status_code=500, detail="Failed to verify token with Google")
+
+
 # Serve static files
 @app.get("/")
 def serve_index():

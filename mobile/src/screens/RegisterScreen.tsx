@@ -1,17 +1,17 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
   TextInput,
   TouchableOpacity,
   StyleSheet,
-  Alert,
   KeyboardAvoidingView,
   Platform,
   Linking,
 } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useAuth } from '../context/AuthContext';
+import { useGoogleAuth } from '../hooks/useGoogleAuth';
 
 type Props = {
   navigation: NativeStackNavigationProp<any>;
@@ -22,24 +22,53 @@ export default function RegisterScreen({ navigation }: Props) {
   const [password, setPassword] = useState('');
   const [agreedToPrivacy, setAgreedToPrivacy] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const { register } = useAuth();
+  const [error, setError] = useState('');
+  const { register, googleLogin } = useAuth();
+  const { response, promptAsync, isConfigured } = useGoogleAuth();
+
+  useEffect(() => {
+    if (response?.type === 'success') {
+      const { id_token } = response.params;
+      if (id_token) {
+        handleGoogleSignUp(id_token);
+      }
+    }
+  }, [response]);
+
+  async function handleGoogleSignUp(idToken: string) {
+    setError('');
+    setIsLoading(true);
+    try {
+      await googleLogin(idToken);
+    } catch (err: any) {
+      setError(err.message || 'Google sign-up failed');
+    } finally {
+      setIsLoading(false);
+    }
+  }
 
   async function handleRegister() {
+    setError('');
+    console.log('Registering...', { email, agreedToPrivacy });
+
     if (!email || !password) {
-      Alert.alert('Error', 'Please enter email and password');
+      setError('Please enter email and password');
       return;
     }
 
     if (!agreedToPrivacy) {
-      Alert.alert('Error', 'Please agree to the Privacy Policy');
+      setError('Please agree to the Privacy Policy');
       return;
     }
 
     setIsLoading(true);
     try {
+      console.log('Calling register API...');
       await register(email, password);
-    } catch (error: any) {
-      Alert.alert('Registration Failed', error.message || 'Please try again');
+      console.log('Registration successful!');
+    } catch (err: any) {
+      console.error('Registration failed:', err);
+      setError(err.message || 'Registration failed. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -52,6 +81,12 @@ export default function RegisterScreen({ navigation }: Props) {
     >
       <View style={styles.card}>
         <Text style={styles.title}>Create Account</Text>
+
+        {error ? (
+          <View style={styles.errorBox}>
+            <Text style={styles.errorText}>{error}</Text>
+          </View>
+        ) : null}
 
         <Text style={styles.label}>Email</Text>
         <TextInput
@@ -106,6 +141,24 @@ export default function RegisterScreen({ navigation }: Props) {
           <Text style={styles.dividerText}>or</Text>
           <View style={styles.dividerLine} />
         </View>
+
+        {isConfigured && (
+          <TouchableOpacity
+            style={styles.googleButton}
+            onPress={() => promptAsync()}
+            disabled={isLoading}
+          >
+            <Text style={styles.googleButtonText}>Sign up with Google</Text>
+          </TouchableOpacity>
+        )}
+
+        {!isConfigured && (
+          <View style={styles.googleButtonDisabled}>
+            <Text style={styles.googleButtonDisabledText}>
+              Google Sign-Up (not configured)
+            </Text>
+          </View>
+        )}
 
         <TouchableOpacity
           style={styles.secondaryButton}
@@ -228,5 +281,45 @@ const styles = StyleSheet.create({
     color: '#333',
     fontSize: 16,
     fontWeight: '600',
+  },
+  googleButton: {
+    backgroundColor: 'white',
+    paddingVertical: 14,
+    borderRadius: 6,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#4285f4',
+    marginBottom: 12,
+  },
+  googleButtonText: {
+    color: '#4285f4',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  googleButtonDisabled: {
+    backgroundColor: '#f5f5f5',
+    paddingVertical: 14,
+    borderRadius: 6,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#ddd',
+    marginBottom: 12,
+  },
+  googleButtonDisabledText: {
+    color: '#999',
+    fontSize: 14,
+  },
+  errorBox: {
+    backgroundColor: '#fee2e2',
+    borderColor: '#ef4444',
+    borderWidth: 1,
+    borderRadius: 6,
+    padding: 12,
+    marginBottom: 16,
+  },
+  errorText: {
+    color: '#dc2626',
+    fontSize: 14,
+    textAlign: 'center',
   },
 });

@@ -1,16 +1,16 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
   TextInput,
   TouchableOpacity,
   StyleSheet,
-  Alert,
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useAuth } from '../context/AuthContext';
+import { useGoogleAuth } from '../hooks/useGoogleAuth';
 
 type Props = {
   navigation: NativeStackNavigationProp<any>;
@@ -20,19 +20,48 @@ export default function LoginScreen({ navigation }: Props) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const { login } = useAuth();
+  const [error, setError] = useState('');
+  const { login, googleLogin } = useAuth();
+  const { response, promptAsync, isConfigured } = useGoogleAuth();
+
+  useEffect(() => {
+    if (response?.type === 'success') {
+      const { id_token } = response.params;
+      if (id_token) {
+        handleGoogleLogin(id_token);
+      }
+    }
+  }, [response]);
+
+  async function handleGoogleLogin(idToken: string) {
+    setError('');
+    setIsLoading(true);
+    try {
+      await googleLogin(idToken);
+    } catch (err: any) {
+      setError(err.message || 'Google login failed');
+    } finally {
+      setIsLoading(false);
+    }
+  }
 
   async function handleLogin() {
+    setError('');
+    console.log('Login attempt...', { email });
+
     if (!email || !password) {
-      Alert.alert('Error', 'Please enter email and password');
+      setError('Please enter email and password');
       return;
     }
 
     setIsLoading(true);
     try {
+      console.log('Calling login API...');
       await login(email, password);
-    } catch (error: any) {
-      Alert.alert('Login Failed', error.message || 'Please check your credentials');
+      console.log('Login successful!');
+    } catch (err: any) {
+      console.error('Login failed:', err);
+      setError(err.message || 'Please check your credentials');
     } finally {
       setIsLoading(false);
     }
@@ -45,6 +74,12 @@ export default function LoginScreen({ navigation }: Props) {
     >
       <View style={styles.card}>
         <Text style={styles.title}>Login</Text>
+
+        {error ? (
+          <View style={styles.errorBox}>
+            <Text style={styles.errorText}>{error}</Text>
+          </View>
+        ) : null}
 
         <Text style={styles.label}>Email</Text>
         <TextInput
@@ -81,6 +116,24 @@ export default function LoginScreen({ navigation }: Props) {
           <Text style={styles.dividerText}>or</Text>
           <View style={styles.dividerLine} />
         </View>
+
+        {isConfigured && (
+          <TouchableOpacity
+            style={styles.googleButton}
+            onPress={() => promptAsync()}
+            disabled={isLoading}
+          >
+            <Text style={styles.googleButtonText}>Sign in with Google</Text>
+          </TouchableOpacity>
+        )}
+
+        {!isConfigured && (
+          <View style={styles.googleButtonDisabled}>
+            <Text style={styles.googleButtonDisabledText}>
+              Google Sign-In (not configured)
+            </Text>
+          </View>
+        )}
 
         <TouchableOpacity
           style={styles.secondaryButton}
@@ -171,5 +224,45 @@ const styles = StyleSheet.create({
     color: '#333',
     fontSize: 16,
     fontWeight: '600',
+  },
+  googleButton: {
+    backgroundColor: 'white',
+    paddingVertical: 14,
+    borderRadius: 6,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#4285f4',
+    marginBottom: 12,
+  },
+  googleButtonText: {
+    color: '#4285f4',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  googleButtonDisabled: {
+    backgroundColor: '#f5f5f5',
+    paddingVertical: 14,
+    borderRadius: 6,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#ddd',
+    marginBottom: 12,
+  },
+  googleButtonDisabledText: {
+    color: '#999',
+    fontSize: 14,
+  },
+  errorBox: {
+    backgroundColor: '#fee2e2',
+    borderColor: '#ef4444',
+    borderWidth: 1,
+    borderRadius: 6,
+    padding: 12,
+    marginBottom: 16,
+  },
+  errorText: {
+    color: '#dc2626',
+    fontSize: 14,
+    textAlign: 'center',
   },
 });

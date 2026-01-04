@@ -1,6 +1,7 @@
 // API client for Number Adder backend
 
-const API_URL = 'https://www.number-adder.com';
+// Production API URL
+const API_URL = 'https://number-adder.com';
 
 interface LoginResponse {
   access_token: string;
@@ -83,6 +84,13 @@ class ApiClient {
     });
   }
 
+  async googleLogin(idToken: string): Promise<LoginResponse> {
+    return this.request<LoginResponse>('/auth/google/mobile', {
+      method: 'POST',
+      body: JSON.stringify({ id_token: idToken }),
+    });
+  }
+
   async add(a: number, b: number): Promise<AddResponse> {
     return this.request<AddResponse>('/add', {
       method: 'POST',
@@ -116,8 +124,10 @@ class ApiClient {
   }
 
   async createCheckoutSession(): Promise<{ checkout_url: string; session_id: string }> {
+    const successUrl = encodeURIComponent('https://number-adder.com/success.html');
+    const cancelUrl = encodeURIComponent('https://number-adder.com/cancel.html');
     return this.request<{ checkout_url: string; session_id: string }>(
-      '/create-checkout-session',
+      `/create-checkout-session?success_url=${successUrl}&cancel_url=${cancelUrl}`,
       { method: 'POST' }
     );
   }
