@@ -14,6 +14,7 @@ from pydantic import BaseModel, EmailStr
 import bcrypt
 from jose import jwt, JWTError
 import stripe
+import posthog
 import uvicorn
 
 from number_adder import add, multiply
@@ -28,6 +29,12 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24  # 24 hours
 stripe.api_key = os.environ.get("STRIPE_SECRET_KEY", "")
 STRIPE_WEBHOOK_SECRET = os.environ.get("STRIPE_WEBHOOK_SECRET", "")
 STRIPE_PRICE_ID = os.environ.get("STRIPE_PRICE_ID", "")  # Price ID for premium upgrade
+
+# PostHog configuration
+POSTHOG_API_KEY = os.environ.get("POSTHOG_API_KEY", "")
+if POSTHOG_API_KEY:
+    posthog.project_api_key = POSTHOG_API_KEY
+    posthog.host = "https://us.i.posthog.com"  # or eu.i.posthog.com for EU
 
 # Google OAuth configuration
 GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID", "")
@@ -95,6 +102,17 @@ class MultiplyResponse(BaseModel):
     result: float
 
 
+# Analytics helper
+def track_event(user_id: int, event: str, properties: dict = None):
+    """Track an event in PostHog if configured."""
+    if POSTHOG_API_KEY:
+        posthog.capture(
+            distinct_id=str(user_id),
+            event=event,
+            properties=properties or {}
+        )
+
+
 # Auth helpers
 def hash_password(password: str) -> str:
     return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
@@ -140,6 +158,9 @@ def register(user: UserRegister):
     password_hash = hash_password(user.password)
     user_id = db.create_user(user.email, password_hash)
 
+    # Track signup
+    track_event(user_id, "user_signed_up", {"method": "email"})
+
     # Return token
     token = create_access_token(user_id)
     return Token(access_token=token, token_type="bearer")
@@ -152,6 +173,7 @@ def login(user: UserLogin):
     if not db_user or not verify_password(user.password, db_user["password_hash"]):
         raise HTTPException(status_code=401, detail="Invalid email or password")
 
+    track_event(db_user["id"], "user_logged_in", {"method": "email"})
     token = create_access_token(db_user["id"])
     return Token(access_token=token, token_type="bearer")
 
@@ -167,6 +189,9 @@ def add_numbers(
 
     # Save to history
     db.save_calculation(user_id, request.a, request.b, result, operation="add")
+
+    # Track calculation
+    track_event(user_id, "calculation", {"operation": "add", "a": request.a, "b": request.b, "result": result})
 
     return AddResponse(a=request.a, b=request.b, result=result)
 
@@ -189,6 +214,9 @@ def multiply_numbers(
 
     # Save to history
     db.save_calculation(user_id, request.a, request.b, result, operation="multiply")
+
+    # Track calculation
+    track_event(user_id, "calculation", {"operation": "multiply", "a": request.a, "b": request.b, "result": result})
 
     return MultiplyResponse(a=request.a, b=request.b, result=result)
 
@@ -239,6 +267,9 @@ def create_checkout_session(
         metadata={"user_id": str(user_id)},
     )
 
+    # Track upgrade started
+    track_event(user_id, "upgrade_started", {"session_id": session.id})
+
     return {"checkout_url": session.url, "session_id": session.id}
 
 
@@ -266,6 +297,7 @@ async def stripe_webhook(request: Request):
         user_id = session.get("metadata", {}).get("user_id")
         if user_id:
             db.upgrade_user_to_premium(int(user_id))
+            track_event(int(user_id), "upgraded_to_premium", {"payment_intent": session.get("payment_intent")})
 
     return {"status": "success"}
 
@@ -287,6 +319,8 @@ def export_my_data(user_id: Annotated[int, Depends(get_current_user_id)]):
     if not data:
         raise HTTPException(status_code=404, detail="User not found")
 
+    track_event(user_id, "data_exported")
+
     return JSONResponse(
         content=data,
         headers={"Content-Disposition": "attachment; filename=my_data.json"}
@@ -296,6 +330,9 @@ def export_my_data(user_id: Annotated[int, Depends(get_current_user_id)]):
 @app.delete("/me")
 def delete_my_account(user_id: Annotated[int, Depends(get_current_user_id)]):
     """Delete my account and all data (GDPR: Right to Erasure)."""
+    # Track before deletion (so we still have the user_id)
+    track_event(user_id, "account_deleted")
+
     success = db.delete_user(user_id)
     if not success:
         raise HTTPException(status_code=404, detail="User not found")
@@ -381,6 +418,12 @@ async def google_callback(code: str):
         else:
             user_id = db_user["id"]
 
+        # Track signup/login
+        if not db_user:
+            track_event(user_id, "user_signed_up", {"method": "google"})
+        else:
+            track_event(user_id, "user_logged_in", {"method": "google"})
+
         # Create JWT token
         token = create_access_token(user_id)
 
@@ -420,8 +463,10 @@ async def google_mobile_auth(request: GoogleTokenRequest):
                 random_password = secrets.token_urlsafe(32)
                 password_hash = hash_password(random_password)
                 user_id = db.create_user(email, password_hash)
+                track_event(user_id, "user_signed_up", {"method": "google_mobile"})
             else:
                 user_id = db_user["id"]
+                track_event(user_id, "user_logged_in", {"method": "google_mobile"})
 
             # Create JWT token
             token = create_access_token(user_id)
