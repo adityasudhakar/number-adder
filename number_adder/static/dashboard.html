@@ -104,20 +104,15 @@
         function applyUpgradeButtonExperiment() {
             posthog.onFeatureFlags(function() {
                 const variant = posthog.getFeatureFlag('upgrade-button-text');
+                const payload = posthog.getFeatureFlagPayload('upgrade-button-text');
+
                 if (variant) {
                     upgradeButtonVariant = variant;
                     const btn = document.getElementById('upgrade-btn');
-                    const title = document.getElementById('upgrade-title');
 
-                    // Map variants to button text
-                    const buttonTexts = {
-                        'control': 'Upgrade Now',
-                        'unlock-multiply': 'Unlock Multiply',
-                        'go-pro': 'Go Pro'
-                    };
-
-                    if (btn && buttonTexts[variant]) {
-                        btn.textContent = buttonTexts[variant];
+                    // Use payload if available, otherwise fall back to defaults
+                    if (payload && payload.buttonText) {
+                        btn.textContent = payload.buttonText;
                     }
                 }
             });
