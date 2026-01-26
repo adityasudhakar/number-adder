@@ -39,9 +39,16 @@ def init_db():
                 password_hash TEXT NOT NULL,
                 is_premium INTEGER NOT NULL DEFAULT 0,
                 stripe_customer_id TEXT,
+                api_key_hash TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
+
+        # Migration: add api_key_hash column to existing databases
+        try:
+            cursor.execute("ALTER TABLE users ADD COLUMN api_key_hash TEXT")
+        except sqlite3.OperationalError:
+            pass  # Column already exists
 
         # Calculations table with CASCADE DELETE for GDPR compliance
         cursor.execute("""
@@ -168,3 +175,39 @@ def export_user_data(user_id: int) -> dict:
         "calculations": calculations,
         "export_timestamp": datetime.now().isoformat()
     }
+
+
+# API key operations
+def set_api_key_hash(user_id: int, api_key_hash: str | None) -> bool:
+    """Set or clear the API key hash for a user."""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "UPDATE users SET api_key_hash = ? WHERE id = ?",
+            (api_key_hash, user_id)
+        )
+        return cursor.rowcount > 0
+
+
+def get_user_by_api_key_hash(api_key_hash: str) -> dict | None:
+    """Get user by API key hash."""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT id, email, is_premium, stripe_customer_id, created_at FROM users WHERE api_key_hash = ?",
+            (api_key_hash,)
+        )
+        row = cursor.fetchone()
+        return dict(row) if row else None
+
+
+def has_api_key(user_id: int) -> bool:
+    """Check if a user has an API key set."""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT api_key_hash FROM users WHERE id = ?",
+            (user_id,)
+        )
+        row = cursor.fetchone()
+        return row is not None and row["api_key_hash"] is not None

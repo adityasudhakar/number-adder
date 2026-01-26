@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API Documentation - Number Adder</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f5; min-height: 100vh; color: #333; }
+        .header { background: white; padding: 15px 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); display: flex; justify-content: space-between; align-items: center; }
+        .header h1 { font-size: 20px; }
+        .header a { color: #007bff; text-decoration: none; margin-left: 20px; }
+        .container { max-width: 800px; margin: 0 auto; padding: 30px 20px; }
+        .card { background: white; border-radius: 8px; padding: 30px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        h2 { margin-bottom: 15px; font-size: 22px; color: #333; }
+        h3 { margin-bottom: 10px; font-size: 16px; }
+        p { line-height: 1.6; color: #555; margin-bottom: 12px; }
+        code { background: #f0f0f0; padding: 2px 6px; border-radius: 3px; font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace; font-size: 13px; }
+        .code-block { background: #1e1e1e; color: #d4d4d4; padding: 15px; border-radius: 6px; font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace; font-size: 13px; overflow-x: auto; margin: 10px 0; white-space: pre; line-height: 1.5; }
+        .endpoint { border: 1px solid #e0e0e0; border-radius: 8px; padding: 20px; margin-bottom: 20px; }
+        .endpoint h3 { font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace; margin-bottom: 8px; display: flex; align-items: center; gap: 10px; }
+        .endpoint p { font-size: 14px; }
+        .method { display: inline-block; padding: 3px 8px; border-radius: 4px; font-size: 12px; font-weight: bold; color: white; font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace; }
+        .method.get { background: #28a745; }
+        .method.post { background: #007bff; }
+        .method.delete { background: #dc3545; }
+        .label { font-weight: 600; color: #333; font-size: 13px; margin-top: 12px; margin-bottom: 4px; }
+        table { width: 100%; border-collapse: collapse; margin: 10px 0; font-size: 14px; }
+        th { text-align: left; padding: 10px 12px; background: #f8f8f8; border-bottom: 2px solid #e0e0e0; font-weight: 600; }
+        td { padding: 10px 12px; border-bottom: 1px solid #eee; }
+        td code { font-size: 12px; }
+        ol, ul { margin: 10px 0 10px 20px; line-height: 1.8; }
+        .premium-badge { background: #28a745; color: white; padding: 2px 6px; border-radius: 3px; font-size: 11px; font-weight: bold; vertical-align: middle; }
+        .toc { list-style: none; margin: 0; padding: 0; }
+        .toc li { margin-bottom: 6px; }
+        .toc a { color: #007bff; text-decoration: none; font-size: 14px; }
+        .toc a:hover { text-decoration: underline; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Number Adder API</h1>
+        <div>
+            <a href="/">Home</a>
+            <a href="/dashboard.html">Dashboard</a>
+        </div>
+    </div>
+
+    <div class="container">
+
+        <!-- Overview -->
+        <div class="card">
+            <h2>API Documentation</h2>
+            <p>The Number Adder API lets you perform calculations, view history, and manage your account programmatically.</p>
+            <p><strong>Base URL:</strong> <code>https://number-adder.com</code></p>
+
+            <h3 style="margin-top: 20px;">Contents</h3>
+            <ul class="toc">
+                <li><a href="#getting-started">Getting Started</a></li>
+                <li><a href="#authentication">Authentication</a></li>
+                <li><a href="#endpoints">Endpoints</a></li>
+                <li><a href="#errors">Errors</a></li>
+            </ul>
+        </div>
+
+        <!-- Getting Started -->
+        <div class="card" id="getting-started">
+            <h2>Getting Started</h2>
+            <ol>
+                <li><a href="/">Create an account</a> on Number Adder</li>
+                <li>Go to <a href="/settings.html">Settings</a></li>
+                <li>Click <strong>Generate API Key</strong></li>
+                <li>Copy and save your key &mdash; it is only shown once</li>
+            </ol>
+            <p>Your key will look like: <code>na_a1b2c3d4e5f6...</code></p>
+        </div>
+
+        <!-- Authentication -->
+        <div class="card" id="authentication">
+            <h2>Authentication</h2>
+            <p>Include your API key in the <code>X-API-Key</code> header with every request:</p>
+            <div class="code-block">curl https://number-adder.com/add \
+  -H "X-API-Key: na_your_key_here" \
+  -H "Content-Type: application/json" \
+  -d '{"a": 2, "b": 3}'</div>
+            <p>All endpoints require authentication. Requests without a valid key return <code>401 Unauthorized</code>.</p>
+        </div>
+
+        <!-- Endpoints -->
+        <div class="card" id="endpoints">
+            <h2>Endpoints</h2>
+
+            <!-- POST /add -->
+            <div class="endpoint">
+                <h3><span class="method post">POST</span> /add</h3>
+                <p>Add two numbers together.</p>
+
+                <p class="label">Request body</p>
+                <div class="code-block">{
+  "a": 5,
+  "b": 3
+}</div>
+
+                <p class="label">Response <code>200</code></p>
+                <div class="code-block">{
+  "a": 5,
+  "b": 3,
+  "result": 8
+}</div>
+
+                <p class="label">Example</p>
+                <div class="code-block">curl -X POST https://number-adder.com/add \
+  -H "X-API-Key: na_your_key_here" \
+  -H "Content-Type: application/json" \
+  -d '{"a": 5, "b": 3}'</div>
+            </div>
+
+            <!-- POST /multiply -->
+            <div class="endpoint">
+                <h3><span class="method post">POST</span> /multiply <span class="premium-badge">PREMIUM</span></h3>
+                <p>Multiply two numbers. Requires a premium subscription.</p>
+
+                <p class="label">Request body</p>
+                <div class="code-block">{
+  "a": 4,
+  "b": 7
+}</div>
+
+                <p class="label">Response <code>200</code></p>
+                <div class="code-block">{
+  "a": 4,
+  "b": 7,
+  "result": 28
+}</div>
+
+                <p class="label">Error <code>403</code> (not premium)</p>
+                <div class="code-block">{
+  "detail": "Premium subscription required. Use /create-checkout-session to upgrade."
+}</div>
+
+                <p class="label">Example</p>
+                <div class="code-block">curl -X POST https://number-adder.com/multiply \
+  -H "X-API-Key: na_your_key_here" \
+  -H "Content-Type: application/json" \
+  -d '{"a": 4, "b": 7}'</div>
+            </div>
+
+            <!-- GET /history -->
+            <div class="endpoint">
+                <h3><span class="method get">GET</span> /history</h3>
+                <p>Get your calculation history, ordered by most recent first.</p>
+
+                <p class="label">Response <code>200</code></p>
+                <div class="code-block">{
+  "calculations": [
+    {
+      "id": 42,
+      "operation": "add",
+      "num_a": 5,
+      "num_b": 3,
+      "result": 8,
+      "created_at": "2025-01-15 10:30:00"
+    }
+  ]
+}</div>
+
+                <p class="label">Example</p>
+                <div class="code-block">curl https://number-adder.com/history \
+  -H "X-API-Key: na_your_key_here"</div>
+            </div>
+
+            <!-- GET /me -->
+            <div class="endpoint">
+                <h3><span class="method get">GET</span> /me</h3>
+                <p>Get your account information.</p>
+
+                <p class="label">Response <code>200</code></p>
+                <div class="code-block">{
+  "id": 1,
+  "email": "user@example.com",
+  "is_premium": 0,
+  "stripe_customer_id": null,
+  "created_at": "2025-01-01 00:00:00"
+}</div>
+
+                <p class="label">Example</p>
+                <div class="code-block">curl https://number-adder.com/me \
+  -H "X-API-Key: na_your_key_here"</div>
+            </div>
+
+            <!-- GET /me/export -->
+            <div class="endpoint">
+                <h3><span class="method get">GET</span> /me/export</h3>
+                <p>Export all your data as JSON (GDPR: Right to Portability).</p>
+
+                <p class="label">Response <code>200</code></p>
+                <div class="code-block">{
+  "user": {
+    "id": 1,
+    "email": "user@example.com",
+    "is_premium": false,
+    "created_at": "2025-01-01 00:00:00"
+  },
+  "calculations": [ ... ],
+  "export_timestamp": "2025-01-15T10:30:00"
+}</div>
+
+                <p class="label">Example</p>
+                <div class="code-block">curl https://number-adder.com/me/export \
+  -H "X-API-Key: na_your_key_here"</div>
+            </div>
+
+            <!-- DELETE /me -->
+            <div class="endpoint">
+                <h3><span class="method delete">DELETE</span> /me</h3>
+                <p>Permanently delete your account and all associated data (GDPR: Right to Erasure). This action cannot be undone.</p>
+
+                <p class="label">Response <code>200</code></p>
+                <div class="code-block">{
+  "message": "Account and all associated data deleted successfully"
+}</div>
+
+                <p class="label">Example</p>
+                <div class="code-block">curl -X DELETE https://number-adder.com/me \
+  -H "X-API-Key: na_your_key_here"</div>
+            </div>
+        </div>
+
+        <!-- Errors -->
+        <div class="card" id="errors">
+            <h2>Errors</h2>
+            <p>The API returns standard HTTP status codes. Error responses include a <code>detail</code> field with a human-readable message.</p>
+
+            <table>
+                <thead>
+                    <tr>
+                        <th>Status</th>
+                        <th>Meaning</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><code>400</code></td>
+                        <td>Bad request &mdash; invalid input or malformed JSON</td>
+                    </tr>
+                    <tr>
+                        <td><code>401</code></td>
+                        <td>Unauthorized &mdash; missing or invalid API key</td>
+                    </tr>
+                    <tr>
+                        <td><code>403</code></td>
+                        <td>Forbidden &mdash; premium subscription required (for <code>/multiply</code>)</td>
+                    </tr>
+                    <tr>
+                        <td><code>404</code></td>
+                        <td>Not found &mdash; resource does not exist</td>
+                    </tr>
+                    <tr>
+                        <td><code>422</code></td>
+                        <td>Validation error &mdash; request body failed validation</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <p class="label">Error response format</p>
+            <div class="code-block">{
+  "detail": "Premium subscription required. Use /create-checkout-session to upgrade."
+}</div>
+        </div>
+
+    </div>
+</body>
+</html>

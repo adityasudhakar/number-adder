@@ -1,12 +1,14 @@
 """FastAPI server for number-adder with GDPR compliance."""
 
 import os
+import hashlib
+import secrets
 from datetime import datetime, timedelta
-from typing import Annotated
+from typing import Annotated, Optional
 
 from pathlib import Path
 from fastapi import FastAPI, HTTPException, Depends, status, Request, Header
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials, APIKeyHeader
 from fastapi.responses import JSONResponse, FileResponse, RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -46,6 +48,7 @@ STATIC_DIR = Path(__file__).parent / "static"
 
 # Security
 security = HTTPBearer()
+api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 
 # FastAPI app
 app = FastAPI(
@@ -102,6 +105,15 @@ class MultiplyResponse(BaseModel):
     result: float
 
 
+class ApiKeyResponse(BaseModel):
+    api_key: str
+    message: str
+
+
+class ApiKeyStatusResponse(BaseModel):
+    has_api_key: bool
+
+
 # Analytics helper
 def track_event(user_id: int, event: str, properties: dict = None):
     """Track an event in PostHog if configured."""
@@ -138,6 +150,44 @@ def get_current_user_id(credentials: Annotated[HTTPAuthorizationCredentials, Dep
         return user_id
     except JWTError:
         raise HTTPException(status_code=401, detail="Invalid token")
+
+
+def hash_api_key(key: str) -> str:
+    """Hash an API key with SHA-256."""
+    return hashlib.sha256(key.encode()).hexdigest()
+
+
+def get_current_user_id_flexible(
+    api_key: Annotated[Optional[str], Depends(api_key_header)] = None,
+    credentials: Annotated[Optional[HTTPAuthorizationCredentials], Depends(HTTPBearer(auto_error=False))] = None,
+) -> int:
+    """Extract user ID from API key or JWT token.
+
+    Tries X-API-Key header first, then falls back to Bearer JWT token.
+    """
+    # Try API key first
+    if api_key:
+        key_hash = hash_api_key(api_key)
+        user = db.get_user_by_api_key_hash(key_hash)
+        if user:
+            return user["id"]
+        raise HTTPException(status_code=401, detail="Invalid API key")
+
+    # Fall back to JWT
+    if credentials:
+        try:
+            payload = jwt.decode(credentials.credentials, SECRET_KEY, algorithms=[ALGORITHM])
+            user_id = int(payload.get("sub"))
+            if user_id is None:
+                raise HTTPException(status_code=401, detail="Invalid token")
+            return user_id
+        except JWTError:
+            raise HTTPException(status_code=401, detail="Invalid token")
+
+    raise HTTPException(
+        status_code=401,
+        detail="Authentication required. Provide a Bearer token or X-API-Key header."
+    )
 
 
 # Startup event
@@ -182,7 +232,7 @@ def login(user: UserLogin):
 @app.post("/add", response_model=AddResponse)
 def add_numbers(
     request: AddRequest,
-    user_id: Annotated[int, Depends(get_current_user_id)]
+    user_id: Annotated[int, Depends(get_current_user_id_flexible)]
 ):
     """Add two numbers (requires authentication)."""
     result = add(request.a, request.b)
@@ -199,7 +249,7 @@ def add_numbers(
 @app.post("/multiply", response_model=MultiplyResponse)
 def multiply_numbers(
     request: MultiplyRequest,
-    user_id: Annotated[int, Depends(get_current_user_id)]
+    user_id: Annotated[int, Depends(get_current_user_id_flexible)]
 ):
     """Multiply two numbers (requires premium subscription)."""
     # Check if user is premium
@@ -222,7 +272,7 @@ def multiply_numbers(
 
 
 @app.get("/history")
-def get_history(user_id: Annotated[int, Depends(get_current_user_id)]):
+def get_history(user_id: Annotated[int, Depends(get_current_user_id_flexible)]):
     """Get calculation history for current user."""
     calculations = db.get_user_calculations(user_id)
     return {"calculations": calculations}
@@ -304,7 +354,7 @@ async def stripe_webhook(request: Request):
 
 # GDPR endpoints
 @app.get("/me")
-def get_my_data(user_id: Annotated[int, Depends(get_current_user_id)]):
+def get_my_data(user_id: Annotated[int, Depends(get_current_user_id_flexible)]):
     """View my account data (GDPR: Right to Access)."""
     user = db.get_user_by_id(user_id)
     if not user:
@@ -313,7 +363,7 @@ def get_my_data(user_id: Annotated[int, Depends(get_current_user_id)]):
 
 
 @app.get("/me/export")
-def export_my_data(user_id: Annotated[int, Depends(get_current_user_id)]):
+def export_my_data(user_id: Annotated[int, Depends(get_current_user_id_flexible)]):
     """Export all my data as JSON (GDPR: Right to Portability)."""
     data = db.export_user_data(user_id)
     if not data:
@@ -328,7 +378,7 @@ def export_my_data(user_id: Annotated[int, Depends(get_current_user_id)]):
 
 
 @app.delete("/me")
-def delete_my_account(user_id: Annotated[int, Depends(get_current_user_id)]):
+def delete_my_account(user_id: Annotated[int, Depends(get_current_user_id_flexible)]):
     """Delete my account and all data (GDPR: Right to Erasure)."""
     # Track before deletion (so we still have the user_id)
     track_event(user_id, "account_deleted")
@@ -338,6 +388,40 @@ def delete_my_account(user_id: Annotated[int, Depends(get_current_user_id)]):
         raise HTTPException(status_code=404, detail="User not found")
 
     return {"message": "Account and all associated data deleted successfully"}
+
+
+# API key management endpoints
+@app.post("/api-key", response_model=ApiKeyResponse)
+def generate_api_key(user_id: Annotated[int, Depends(get_current_user_id)]):
+    """Generate a new API key. Invalidates any existing key."""
+    raw = secrets.token_hex(16)
+    api_key = f"na_{raw}"
+
+    key_hash = hash_api_key(api_key)
+    db.set_api_key_hash(user_id, key_hash)
+
+    track_event(user_id, "api_key_generated")
+
+    return ApiKeyResponse(
+        api_key=api_key,
+        message="API key generated. Save it now — it won't be shown again."
+    )
+
+
+@app.delete("/api-key")
+def revoke_api_key(user_id: Annotated[int, Depends(get_current_user_id)]):
+    """Revoke the current API key."""
+    db.set_api_key_hash(user_id, None)
+
+    track_event(user_id, "api_key_revoked")
+
+    return {"message": "API key revoked successfully"}
+
+
+@app.get("/api-key/status", response_model=ApiKeyStatusResponse)
+def get_api_key_status(user_id: Annotated[int, Depends(get_current_user_id)]):
+    """Check if user has an active API key."""
+    return ApiKeyStatusResponse(has_api_key=db.has_api_key(user_id))
 
 
 # Health check
@@ -477,6 +561,12 @@ async def google_mobile_auth(request: GoogleTokenRequest):
 
 
 # Serve static files
+@app.get("/api-docs")
+def serve_api_docs():
+    """Serve the API documentation page."""
+    return FileResponse(STATIC_DIR / "api-docs.html")
+
+
 @app.get("/")
 def serve_index():
     """Serve the landing page."""
