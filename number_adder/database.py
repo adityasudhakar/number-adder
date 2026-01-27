@@ -1,17 +1,18 @@
 """Database setup and operations for number-adder service."""
 
-import sqlite3
+import os
 from datetime import datetime
-from pathlib import Path
 from contextlib import contextmanager
 
-DATABASE_PATH = Path("number_adder.db")
+import psycopg2
+import psycopg2.extras
+
+DATABASE_URL = os.environ.get("DATABASE_URL")
 
 
 def get_connection():
     """Get a database connection."""
-    conn = sqlite3.connect(DATABASE_PATH)
-    conn.row_factory = sqlite3.Row  # Return rows as dictionaries
+    conn = psycopg2.connect(DATABASE_URL, cursor_factory=psycopg2.extras.RealDictCursor)
     return conn
 
 
@@ -34,38 +35,29 @@ def init_db():
         # Users table
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS users (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                id SERIAL PRIMARY KEY,
                 email TEXT UNIQUE NOT NULL,
                 password_hash TEXT NOT NULL,
-                is_premium INTEGER NOT NULL DEFAULT 0,
+                is_premium BOOLEAN NOT NULL DEFAULT FALSE,
                 stripe_customer_id TEXT,
                 api_key_hash TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
 
-        # Migration: add api_key_hash column to existing databases
-        try:
-            cursor.execute("ALTER TABLE users ADD COLUMN api_key_hash TEXT")
-        except sqlite3.OperationalError:
-            pass  # Column already exists
-
         # Calculations table with CASCADE DELETE for GDPR compliance
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS calculations (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                id SERIAL PRIMARY KEY,
                 user_id INTEGER NOT NULL,
                 operation TEXT NOT NULL DEFAULT 'add',
-                num_a REAL NOT NULL,
-                num_b REAL NOT NULL,
-                result REAL NOT NULL,
+                num_a DOUBLE PRECISION NOT NULL,
+                num_b DOUBLE PRECISION NOT NULL,
+                result DOUBLE PRECISION NOT NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
             )
         """)
-
-        # Enable foreign key support (required for CASCADE DELETE)
-        cursor.execute("PRAGMA foreign_keys = ON")
 
 
 # User operations
@@ -74,17 +66,17 @@ def create_user(email: str, password_hash: str) -> int:
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute(
-            "INSERT INTO users (email, password_hash) VALUES (?, ?)",
+            "INSERT INTO users (email, password_hash) VALUES (%s, %s) RETURNING id",
             (email, password_hash)
         )
-        return cursor.lastrowid
+        return cursor.fetchone()["id"]
 
 
 def get_user_by_email(email: str) -> dict | None:
     """Get user by email."""
     with get_db() as conn:
         cursor = conn.cursor()
-        cursor.execute("SELECT * FROM users WHERE email = ?", (email,))
+        cursor.execute("SELECT * FROM users WHERE email = %s", (email,))
         row = cursor.fetchone()
         return dict(row) if row else None
 
@@ -93,7 +85,7 @@ def get_user_by_id(user_id: int) -> dict | None:
     """Get user by ID."""
     with get_db() as conn:
         cursor = conn.cursor()
-        cursor.execute("SELECT id, email, is_premium, stripe_customer_id, created_at FROM users WHERE id = ?", (user_id,))
+        cursor.execute("SELECT id, email, is_premium, stripe_customer_id, created_at FROM users WHERE id = %s", (user_id,))
         row = cursor.fetchone()
         return dict(row) if row else None
 
@@ -102,7 +94,7 @@ def upgrade_user_to_premium(user_id: int) -> bool:
     """Upgrade a user to premium."""
     with get_db() as conn:
         cursor = conn.cursor()
-        cursor.execute("UPDATE users SET is_premium = 1 WHERE id = ?", (user_id,))
+        cursor.execute("UPDATE users SET is_premium = TRUE WHERE id = %s", (user_id,))
         return cursor.rowcount > 0
 
 
@@ -110,7 +102,7 @@ def set_stripe_customer_id(user_id: int, customer_id: str) -> bool:
     """Set the Stripe customer ID for a user."""
     with get_db() as conn:
         cursor = conn.cursor()
-        cursor.execute("UPDATE users SET stripe_customer_id = ? WHERE id = ?", (customer_id, user_id))
+        cursor.execute("UPDATE users SET stripe_customer_id = %s WHERE id = %s", (customer_id, user_id))
         return cursor.rowcount > 0
 
 
@@ -118,7 +110,7 @@ def get_user_by_stripe_customer_id(customer_id: str) -> dict | None:
     """Get user by Stripe customer ID."""
     with get_db() as conn:
         cursor = conn.cursor()
-        cursor.execute("SELECT id, email, is_premium, stripe_customer_id, created_at FROM users WHERE stripe_customer_id = ?", (customer_id,))
+        cursor.execute("SELECT id, email, is_premium, stripe_customer_id, created_at FROM users WHERE stripe_customer_id = %s", (customer_id,))
         row = cursor.fetchone()
         return dict(row) if row else None
 
@@ -127,9 +119,7 @@ def delete_user(user_id: int) -> bool:
     """Delete a user and all their data (CASCADE DELETE handles calculations)."""
     with get_db() as conn:
         cursor = conn.cursor()
-        # Enable foreign keys for this connection
-        cursor.execute("PRAGMA foreign_keys = ON")
-        cursor.execute("DELETE FROM users WHERE id = ?", (user_id,))
+        cursor.execute("DELETE FROM users WHERE id = %s", (user_id,))
         return cursor.rowcount > 0
 
 
@@ -139,10 +129,10 @@ def save_calculation(user_id: int, num_a: float, num_b: float, result: float, op
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute(
-            "INSERT INTO calculations (user_id, operation, num_a, num_b, result) VALUES (?, ?, ?, ?, ?)",
+            "INSERT INTO calculations (user_id, operation, num_a, num_b, result) VALUES (%s, %s, %s, %s, %s) RETURNING id",
             (user_id, operation, num_a, num_b, result)
         )
-        return cursor.lastrowid
+        return cursor.fetchone()["id"]
 
 
 def get_user_calculations(user_id: int) -> list[dict]:
@@ -150,7 +140,7 @@ def get_user_calculations(user_id: int) -> list[dict]:
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute(
-            "SELECT id, operation, num_a, num_b, result, created_at FROM calculations WHERE user_id = ? ORDER BY created_at DESC",
+            "SELECT id, operation, num_a, num_b, result, created_at FROM calculations WHERE user_id = %s ORDER BY created_at DESC",
             (user_id,)
         )
         return [dict(row) for row in cursor.fetchall()]
@@ -183,7 +173,7 @@ def set_api_key_hash(user_id: int, api_key_hash: str | None) -> bool:
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute(
-            "UPDATE users SET api_key_hash = ? WHERE id = ?",
+            "UPDATE users SET api_key_hash = %s WHERE id = %s",
             (api_key_hash, user_id)
         )
         return cursor.rowcount > 0
@@ -194,7 +184,7 @@ def get_user_by_api_key_hash(api_key_hash: str) -> dict | None:
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute(
-            "SELECT id, email, is_premium, stripe_customer_id, created_at FROM users WHERE api_key_hash = ?",
+            "SELECT id, email, is_premium, stripe_customer_id, created_at FROM users WHERE api_key_hash = %s",
             (api_key_hash,)
         )
         row = cursor.fetchone()
@@ -206,7 +196,7 @@ def has_api_key(user_id: int) -> bool:
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute(
-            "SELECT api_key_hash FROM users WHERE id = ?",
+            "SELECT api_key_hash FROM users WHERE id = %s",
             (user_id,)
         )
         row = cursor.fetchone()
