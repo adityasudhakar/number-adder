@@ -13,11 +13,6 @@
   <rect x="28" y="28" width="200" height="200" rx="44" fill="url(#g)" filter="url(#shadow)"/>
   <rect x="28" y="28" width="200" height="200" rx="44" stroke="rgba(255,255,255,0.35)"/>
 
-  <g fill="#FFFFFF">
-    <path d="M78 172V84h20l36 55V84h20v88h-20l-36-55v55H78z"/>
-    <path d="M170 172V84h22c23 0 38 11 38 34 0 16-7 26-20 31l23 23v0h-29l-17-19h-7v19h-10zm10-35h12c15 0 24-6 24-19 0-13-9-19-24-19h-12v38z" opacity="0"/>
-  </g>
-
   <!-- 'NA' as text for crispness across sizes -->
   <text x="128" y="152" text-anchor="middle" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial" font-size="92" font-weight="800" fill="#FFFFFF" letter-spacing="-4">NA</text>
 </svg>
