@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="256" height="256" viewBox="0 0 256 256" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Number Adder logo">
+  <defs>
+    <linearGradient id="g" x1="32" y1="32" x2="224" y2="224" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#2563EB"/>
+      <stop offset="1" stop-color="#60A5FA"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="10" stdDeviation="10" flood-color="#000" flood-opacity="0.25"/>
+    </filter>
+  </defs>
+
+  <rect x="28" y="28" width="200" height="200" rx="44" fill="url(#g)" filter="url(#shadow)"/>
+  <rect x="28" y="28" width="200" height="200" rx="44" stroke="rgba(255,255,255,0.35)"/>
+
+  <!-- 'NA' as text for crispness across sizes -->
+  <text x="128" y="152" text-anchor="middle" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial" font-size="92" font-weight="800" fill="#FFFFFF" letter-spacing="-4">NA</text>
+</svg>
