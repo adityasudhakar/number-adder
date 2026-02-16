@@ -48,15 +48,30 @@ jobs:
               return;
             }
 
-            // Enable auto-merge via GraphQL (merge commit)
+            // Prefer enabling auto-merge; if GitHub reports UNSTABLE/"unstable status",
+            // fall back to merging immediately (still only for tasks/*.md-only PRs).
             const prId = context.payload.pull_request.node_id;
             core.info(`Enabling auto-merge for PR #${pull_number}`);
 
-            await github.graphql(
-              `mutation EnableAutoMerge($prId: ID!) {
-                enablePullRequestAutoMerge(input: { pullRequestId: $prId, mergeMethod: MERGE }) {
-                  pullRequest { number autoMergeRequest { enabledAt } }
-                }
-              }`,
-              { prId }
-            );
+            try {
+              await github.graphql(
+                `mutation EnableAutoMerge($prId: ID!) {
+                  enablePullRequestAutoMerge(input: { pullRequestId: $prId, mergeMethod: MERGE }) {
+                    pullRequest { number autoMergeRequest { enabledAt } }
+                  }
+                }`,
+                { prId }
+              );
+            } catch (e) {
+              const msg = String(e?.message || e);
+              core.warning(`enablePullRequestAutoMerge failed: ${msg}`);
+
+              // Fallback: merge now
+              core.info(`Falling back to immediate merge for PR #${pull_number}`);
+              await github.rest.pulls.merge({
+                owner,
+                repo,
+                pull_number,
+                merge_method: 'merge',
+              });
+            }
