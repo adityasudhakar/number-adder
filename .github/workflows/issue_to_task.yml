@@ -50,13 +50,22 @@ jobs:
             const { data: baseRef } = await github.rest.git.getRef({ owner, repo, ref: `heads/${baseBranch}` });
             const baseSha = baseRef.object.sha;
 
-            // Create branch
-            await github.rest.git.createRef({
-              owner,
-              repo,
-              ref: `refs/heads/${branchName}`,
-              sha: baseSha,
-            });
+            // Create branch (ignore if it already exists)
+            try {
+              await github.rest.git.createRef({
+                owner,
+                repo,
+                ref: `refs/heads/${branchName}`,
+                sha: baseSha,
+              });
+            } catch (e) {
+              // 422 => reference already exists
+              if (e.status === 422) {
+                core.info(`Branch ${branchName} already exists; continuing.`);
+              } else {
+                throw e;
+              }
+            }
 
             const body = (issue.body || '').trim();
             const issueUrl = issue.html_url;
