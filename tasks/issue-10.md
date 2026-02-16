@@ -1,26 +1,38 @@
 # Task: Frontend: Add tooltip to Submit button
 
 ## Source
-- GitHub Issue: https://github.com/adityasudhakar/number-adder/issues/10
+- GitHub Issue: [#10](https://github.com/adityasudhakar/number-adder/issues/10)
 
 ## Context
-Please add a tooltip to the Submit button explaining what it does. Keep it simple.
+Add a tooltip to the Submit button that provides a brief description of its function.
 
-## Acceptance Criteria (must be testable)
-- [ ] (fill in)
+## Scope
+- Implement a tooltip on the Submit button.
+- Tooltip text: "Click to submit your input."
 
-## Test selection guide
-Pick the cheapest test that proves the change:
+## Non-goals
+- Redesign the Submit button.
+- Modify any existing functionality of the button.
 
-1) **Backend unit/service tests (pytest)**: business logic, helpers.
-2) **Backend API contract tests (pytest + FastAPI TestClient)**: endpoints, validation, responses.
-3) **Frontend component tests (Vitest/Jest + React Testing Library)**: UI behavior (if web frontend exists).
-4) **E2E smoke (Playwright)**: only for critical cross-stack flows.
+## Acceptance Criteria
+- [ ] Tooltip appears on hover over the Submit button.
+- [ ] Tooltip text is "Click to submit your input."
+- [ ] Tooltip is accessible and meets WCAG 2.1 AA standards.
 
-## How to test locally
-- Backend: `python -m pytest`
-- Frontend (if applicable): `npm test`
+## Implementation Notes
+- Use a CSS framework or library for tooltip implementation if available.
+- Ensure the tooltip does not obstruct other UI elements.
 
-## Notes / Constraints
-- Keep PR small and focused.
-- If acceptance criteria can’t be tested, mark task as blocked and explain why.
+## Test Plan
+1. **Frontend component tests (Vitest/Jest + React Testing Library)**:
+   - Verify that the tooltip appears on hover.
+   - Check that the tooltip text matches the acceptance criteria.
+   - Ensure the tooltip is accessible via keyboard navigation.
+
+## Rollback/Safety
+- If the tooltip implementation causes UI issues, revert to the previous version of the Submit button component.
+- Ensure all tests pass before merging the changes.
+
+---
+
+_Spec upgraded by manager: 2023-10-01T12:00:00Z_
