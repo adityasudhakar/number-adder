@@ -1,26 +1,52 @@
+```markdown
 # Task: Backend: Add /version endpoint
 
 ## Source
-- GitHub Issue: https://github.com/adityasudhakar/number-adder/issues/11
+- GitHub Issue: [#11](https://github.com/adityasudhakar/number-adder/issues/11)
 
 ## Context
-Add an endpoint that returns the app version (from pyproject) and git sha (if available).
+Implement a new API endpoint `/version` that returns the application version from `pyproject.toml` and the current Git SHA if available.
 
-## Acceptance Criteria (must be testable)
-- [ ] (fill in)
+## Scope
+- Create the `/version` endpoint in the backend.
+- Extract the version from `pyproject.toml`.
+- Retrieve the current Git SHA using a suitable method.
 
-## Test selection guide
-Pick the cheapest test that proves the change:
+## Non-goals
+- This task does not include frontend changes or documentation updates.
 
-1) **Backend unit/service tests (pytest)**: business logic, helpers.
-2) **Backend API contract tests (pytest + FastAPI TestClient)**: endpoints, validation, responses.
-3) **Frontend component tests (Vitest/Jest + React Testing Library)**: UI behavior (if web frontend exists).
-4) **E2E smoke (Playwright)**: only for critical cross-stack flows.
+## Acceptance Criteria
+- [ ] The `/version` endpoint returns a JSON response with the following structure:
+  ```json
+  {
+    "version": "<app_version>",
+    "git_sha": "<git_sha>"
+  }
+  ```
+- [ ] If the Git SHA is not available, the response should still include the version:
+  ```json
+  {
+    "version": "<app_version>",
+    "git_sha": null
+  }
+  ```
+- [ ] The endpoint responds with a 200 status code for successful requests.
+- [ ] Unit tests cover the logic for retrieving version and Git SHA.
 
-## How to test locally
-- Backend: `python -m pytest`
-- Frontend (if applicable): `npm test`
+## Implementation Notes
+- Use FastAPI to implement the endpoint.
+- Ensure that the version is read from `pyproject.toml` using a library like `toml`.
+- Use `subprocess` to get the current Git SHA.
 
-## Notes / Constraints
-- Keep PR small and focused.
-- If acceptance criteria can’t be tested, mark task as blocked and explain why.
+## Test Plan
+1. **Backend unit tests**: Validate the logic for reading the version and Git SHA.
+2. **Backend API contract tests**: Test the `/version` endpoint for correct response structure and status codes.
+
+## Rollback/Safety
+- If the implementation fails, revert the changes in the endpoint file and run tests to ensure stability.
+- Ensure that the new endpoint does not interfere with existing functionality.
+
+---
+
+_Spec upgraded by manager: 2023-10-01T12:00:00Z_
+```
