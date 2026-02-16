@@ -163,7 +163,11 @@ export default function DashboardScreen({ navigation }: Props) {
         <TouchableOpacity
           style={[styles.calculateButton, isLoading && styles.buttonDisabled]}
           onPress={handleCalculate}
+          onLongPress={() => Alert.alert("Calculate", "Sends your numbers to the server and returns the result.")}
+          delayLongPress={300}
           disabled={isLoading}
+          accessibilityRole="button"
+          accessibilityHint="Calculates the result for the two numbers"
         >
           <Text style={styles.calculateButtonText}>
             {isLoading ? 'Calculating...' : 'Calculate'}
