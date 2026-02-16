@@ -431,43 +431,6 @@ def health():
     return {"status": "healthy"}
 
 
-# Version endpoint
-def _read_pyproject_version() -> str:
-    """Read version from repo pyproject.toml (best-effort)."""
-    try:
-        import tomllib  # py3.11+
-        pyproject = Path(__file__).resolve().parents[1] / "pyproject.toml"
-        data = tomllib.loads(pyproject.read_text("utf-8"))
-        return str(data.get("project", {}).get("version") or "unknown")
-    except Exception:
-        return "unknown"
-
-
-def _read_git_sha():
-    """Get git sha from env or from git (best-effort)."""
-    sha = os.environ.get("GIT_SHA") or os.environ.get("GITHUB_SHA")
-    if sha:
-        return sha
-    try:
-        import subprocess
-        out = subprocess.check_output(
-            ["git", "rev-parse", "HEAD"],
-            cwd=str(Path(__file__).resolve().parents[1]),
-        )
-        return out.decode().strip()
-    except Exception:
-        return None
-
-
-@app.get("/version")
-def version():
-    """Return application version and git sha (if available)."""
-    return {
-        "version": _read_pyproject_version(),
-        "git_sha": _read_git_sha(),
-    }
-
-
 # Google OAuth endpoints
 @app.get("/auth/google")
 def google_login():
