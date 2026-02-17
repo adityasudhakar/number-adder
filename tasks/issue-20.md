@@ -1,26 +1,36 @@
 # Task: Add support for adding 3 numbers (API + web UI)
 
-## Source
-- GitHub Issue: https://github.com/adityasudhakar/number-adder/issues/20
-
 ## Context
-## Goal\nNumber-adder currently adds 2 numbers. Extend it to support adding 3 numbers, and keep the web UI consistent.\n\n## Scope\n- Backend API: support 3-number add\n- Web UI: always show 3 input fields for addition\n\n## Acceptance Criteria\n- API  accepts either 2 numbers (existing behavior) or 3 numbers and returns the correct sum.\n- Backward compatible: existing 2-number clients still work unchanged.\n- Web UI always shows three input fields for addition and submits all three.\n- Add/update pytest tests to cover both 2-number and 3-number cases.\n\n## Notes\n- Prefer minimal changes; avoid breaking multiply or auth flows.\n- If you need to choose a request format, prefer extending existing schema (e.g. optional ) over inventing a new endpoint.\n
+The current implementation of the Number-adder application supports the addition of 2 numbers. This task aims to extend the functionality to allow the addition of 3 numbers while maintaining consistency in the web UI.
 
-## Acceptance Criteria (must be testable)
-- [ ] (fill in)
+## Scope
+- **Backend API**: Modify the existing addition endpoint to accept either 2 or 3 numbers.
+- **Web UI**: Update the user interface to always display 3 input fields for number addition.
 
-## Test selection guide
-Pick the cheapest test that proves the change:
+## Non-goals
+- Do not alter existing functionality for adding 2 numbers.
+- Avoid changes to multiplication or authentication flows.
 
-1) **Backend unit/service tests (pytest)**: business logic, helpers.
-2) **Backend API contract tests (pytest + FastAPI TestClient)**: endpoints, validation, responses.
-3) **Frontend component tests (Vitest/Jest + React Testing Library)**: UI behavior (if web frontend exists).
-4) **E2E smoke (Playwright)**: only for critical cross-stack flows.
+## Acceptance Criteria (testable)
+- [ ] The API accepts requests with either 2 or 3 numbers and returns the correct sum.
+- [ ] Existing clients that use the 2-number addition continue to function without changes.
+- [ ] The web UI consistently displays 3 input fields for number addition.
+- [ ] The submission of the web form sends all three input values.
+- [ ] Unit tests are added/updated to cover both 2-number and 3-number addition scenarios using pytest.
 
-## How to test locally
-- Backend: `python -m pytest`
-- Frontend (if applicable): `npm test`
+## Implementation Notes
+- Extend the existing request schema to include an optional third number instead of creating a new endpoint.
+- Ensure that any changes made do not interfere with existing functionalities.
 
-## Notes / Constraints
-- Keep PR small and focused.
-- If acceptance criteria can’t be tested, mark task as blocked and explain why.
+## Test Plan
+1. **Backend Unit Tests**: Validate business logic for both 2-number and 3-number addition.
+2. **Backend API Contract Tests**: Ensure the API responds correctly for both 2-number and 3-number requests.
+3. **Frontend Component Tests**: Verify that the UI displays 3 input fields and submits all values correctly.
+
+## Rollback/Safety
+- If any issues arise during testing, revert changes to the last stable commit.
+- Ensure that all existing tests pass before merging the changes.
+
+---
+
+_Spec upgraded by manager: 2026-02-17T04:26:20+00:00_
