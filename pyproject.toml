@@ -26,6 +26,7 @@ dependencies = [
 [project.scripts]
 number-adder = "number_adder.cli:main"
 number-adder-server = "number_adder.server:main"
+na = "number_adder.na_cli:main"
 
 [tool.setuptools.package-data]
 number_adder = ["static/*.html"]
