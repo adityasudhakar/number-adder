@@ -1,9 +1,10 @@
 # Architecture (Number Adder)
 
-This repo contains two related-but-separate things:
+This repo contains three related artifacts:
 
-1) **A Python package on PyPI** (`number-adder`)
-2) **A hosted HTTP API** (currently deployed on Railway) that exposes endpoints like `/add`, `/history`, etc.
+1) **Python package on PyPI**: `number-adder` (local library + local CLI)
+2) **Hosted HTTP API** (Railway): endpoints like `/add`, `/history`, etc.
+3) **Agent-first API CLI**: `na` (generic API caller; uses `X-API-Key`)
 
 It also hosts the "0human" automation demo (manager/worker agents on GCP) which operates on this repo via GitHub issues/PRs.
 
