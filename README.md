@@ -12,9 +12,9 @@ A simple number adding service with:
 
 ## Quick links (hosted)
 
-- API base: https://number-adder.up.railway.app
-- OpenAPI: https://number-adder.up.railway.app/openapi.json
-- API docs: https://number-adder.up.railway.app/api-docs
+- API base: https://number-adder.com
+- OpenAPI: https://number-adder.com/openapi.json
+- API docs: https://number-adder.com/api-docs
 
 ## Agent Quickstart
 

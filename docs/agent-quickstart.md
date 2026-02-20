@@ -4,9 +4,9 @@ Goal: an agent should be able to discover how to use Number Adder without needin
 
 ## Hosted API (Railway)
 
-- Base URL: `https://number-adder.up.railway.app`
-- OpenAPI spec: `https://number-adder.up.railway.app/openapi.json`
-- Docs UI: `https://number-adder.up.railway.app/api-docs`
+- Base URL: `https://number-adder.com`
+- OpenAPI spec: `https://number-adder.com/openapi.json`
+- Docs UI: `https://number-adder.com/api-docs`
 
 ### Auth
 

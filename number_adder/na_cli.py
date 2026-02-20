@@ -29,7 +29,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-DEFAULT_BASE_URL = "https://number-adder.up.railway.app"
+DEFAULT_BASE_URL = "https://number-adder.com"
 DEFAULT_CONFIG_PATH = Path("~/.config/na/config.json").expanduser()
 
 
