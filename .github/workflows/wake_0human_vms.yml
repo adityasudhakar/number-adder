@@ -1,0 +1,36 @@
+name: Wake 0human VMs
+
+on:
+  issues:
+    types: [labeled]
+
+permissions:
+  contents: read
+
+jobs:
+  wake:
+    if: github.event.label.name == 'agent:build'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Auth to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Setup gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Start manager + worker VMs
+        env:
+          GCP_PROJECT: human-openclaw
+          GCP_ZONE: us-east1-b
+          INSTANCES: ohuman-manager-1 ohuman-worker-1
+        run: |
+          set -euo pipefail
+          gcloud config set project "$GCP_PROJECT"
+          for i in $INSTANCES; do
+            echo "Starting $i..."
+            # start is safe to call even if already running (may return non-zero); ignore errors
+            gcloud compute instances start "$i" --zone "$GCP_ZONE" || true
+          done
