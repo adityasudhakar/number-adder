@@ -1,0 +1,57 @@
+name: Sleep 0human VMs
+
+on:
+  issues:
+    types: [closed, unlabeled]
+
+permissions:
+  contents: read
+  issues: read
+
+jobs:
+  sleep:
+    # Only consider events that might reduce the queue.
+    if: github.event.action == 'closed' || github.event.label.name == 'agent:build' || github.event.label.name == 'agent:claimed'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check if any active agent issues remain
+        id: q
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          # Count open issues that are still in the agent queue / in progress.
+          n_build=$(gh issue list --state open --label "agent:build" --json number --jq 'length')
+          n_claimed=$(gh issue list --state open --label "agent:claimed" --json number --jq 'length')
+          echo "n_build=$n_build" >> "$GITHUB_OUTPUT"
+          echo "n_claimed=$n_claimed" >> "$GITHUB_OUTPUT"
+          if [ "$n_build" -eq 0 ] && [ "$n_claimed" -eq 0 ]; then
+            echo "should_sleep=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "should_sleep=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Auth to Google Cloud
+        if: steps.q.outputs.should_sleep == 'true'
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Setup gcloud
+        if: steps.q.outputs.should_sleep == 'true'
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Stop manager + worker VMs (when queue empty)
+        if: steps.q.outputs.should_sleep == 'true'
+        env:
+          GCP_PROJECT: human-openclaw
+          GCP_ZONE: us-east1-b
+          INSTANCES: ohuman-worker-1 ohuman-worker-2 ohuman-manager-1
+        run: |
+          set -euo pipefail
+          gcloud config set project "$GCP_PROJECT"
+          for i in $INSTANCES; do
+            echo "Stopping $i..."
+            gcloud compute instances stop "$i" --zone "$GCP_ZONE" || true
+          done
