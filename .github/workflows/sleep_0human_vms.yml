@@ -22,8 +22,9 @@ jobs:
         run: |
           set -euo pipefail
           # Count open issues that are still in the agent queue / in progress.
-          n_build=$(gh issue list --state open --label "agent:build" --json number --jq 'length')
-          n_claimed=$(gh issue list --state open --label "agent:claimed" --json number --jq 'length')
+          # gh requires a repo context when not checked out.
+          n_build=$(gh issue list --repo "${GITHUB_REPOSITORY}" --state open --label "agent:build" --json number --jq 'length')
+          n_claimed=$(gh issue list --repo "${GITHUB_REPOSITORY}" --state open --label "agent:claimed" --json number --jq 'length')
           echo "n_build=$n_build" >> "$GITHUB_OUTPUT"
           echo "n_claimed=$n_claimed" >> "$GITHUB_OUTPUT"
           if [ "$n_build" -eq 0 ] && [ "$n_claimed" -eq 0 ]; then
