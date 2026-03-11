@@ -6,3 +6,4 @@ build/
 *.pyc
 *.db
 .aider*
+.venv/
