@@ -1,32 +1,41 @@
 # Task: Add a /subtract endpoint that subtracts two numbers
 
-## Source
-- GitHub Issue: https://github.com/adityasudhakar/number-adder/issues/23
-
 ## Context
-Add a new API endpoint `/subtract` that accepts two numbers and returns their difference.
+Implement a new API endpoint `/subtract` that accepts two numbers and returns their difference.
 
-**Requirements:**
-- Endpoint: `POST /subtract` or `GET /subtract?a=X&b=Y`
-- Returns: `{"result": a - b}`
-- Add tests confirming `5 - 3 = 2`, `0 - 5 = -5`, `10 - 10 = 0`
-- Update web UI to include subtract functionality
+## Scope
+- Create the endpoint `POST /subtract` and/or `GET /subtract?a=X&b=Y`.
+- Ensure the response format is `{"result": a - b}`.
+- Implement unit tests for the following cases:
+  - `5 - 3 = 2`
+  - `0 - 5 = -5`
+  - `10 - 10 = 0`
+- Update the web UI to include functionality for subtraction.
 
-## Acceptance Criteria (must be testable)
-- [ ] (fill in)
+## Non-goals
+- Do not modify existing endpoints unrelated to subtraction.
+- Do not implement additional mathematical operations.
 
-## Test selection guide
-Pick the cheapest test that proves the change:
+## Acceptance Criteria
+- [ ] The endpoint `POST /subtract` returns `{"result": 2}` for input `{"a": 5, "b": 3}`.
+- [ ] The endpoint `GET /subtract?a=0&b=5` returns `{"result": -5}`.
+- [ ] The endpoint `GET /subtract?a=10&b=10` returns `{"result": 0}`.
+- [ ] Unit tests for the above cases are implemented and pass successfully.
+- [ ] The web UI includes a functional component for subtraction.
 
-1) **Backend unit/service tests (pytest)**: business logic, helpers.
-2) **Backend API contract tests (pytest + FastAPI TestClient)**: endpoints, validation, responses.
-3) **Frontend component tests (Vitest/Jest + React Testing Library)**: UI behavior (if web frontend exists).
-4) **E2E smoke (Playwright)**: only for critical cross-stack flows.
+## Implementation Notes
+- Follow existing code style and conventions.
+- Ensure proper error handling for invalid inputs (e.g., non-numeric values).
 
-## How to test locally
-- Backend: `python -m pytest`
-- Frontend (if applicable): `npm test`
+## Test Plan
+1. **Backend Unit Tests**: Use `pytest` to validate business logic for subtraction.
+2. **API Contract Tests**: Use `pytest` with FastAPI TestClient to verify endpoint responses.
+3. **Frontend Component Tests**: If applicable, use Vitest/Jest with React Testing Library to test UI behavior.
 
-## Notes / Constraints
-- Keep PR small and focused.
-- If acceptance criteria can’t be tested, mark task as blocked and explain why.
+## Rollback/Safety
+- If issues arise during deployment, revert to the previous stable commit.
+- Ensure all tests pass before merging to the main branch.
+
+---
+
+_Spec upgraded by manager: 2023-10-01T12:00:00Z_
