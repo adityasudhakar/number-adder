@@ -246,12 +246,6 @@ def add_numbers(
     return AddResponse(a=request.a, b=request.b, result=result)
 
 
-@app.get("/multiply")
-def multiply_numbers_query(a: float, b: float):
-    """Multiply two numbers provided as query parameters."""
-    return {"result": multiply(a, b)}
-
-
 @app.post("/multiply", response_model=MultiplyResponse)
 def multiply_numbers(
     request: MultiplyRequest,
