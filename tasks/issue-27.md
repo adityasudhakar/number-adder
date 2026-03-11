@@ -1,31 +1,35 @@
 # Task: Add /multiply endpoint
 
-## Source
-- GitHub Issue: https://github.com/adityasudhakar/number-adder/issues/27
-
 ## Context
-Add a new API endpoint that multiplies two numbers.
+We need to implement a new API endpoint that multiplies two numbers provided as query parameters.
 
-**Requirements:**
-- Endpoint: `GET /multiply?a=X&b=Y` 
-- Returns: `{"result": X * Y}`
-- Add tests for: 3*4=12, 0*5=0, -2*3=-6
+## Scope
+- Implement the endpoint `GET /multiply?a=X&b=Y`.
+- Ensure the response format is `{"result": X * Y}`.
+- Include unit tests to validate the multiplication logic.
 
-## Acceptance Criteria (must be testable)
-- [ ] (fill in)
+## Non-goals
+- This task does not include any frontend changes or UI components.
 
-## Test selection guide
-Pick the cheapest test that proves the change:
+## Acceptance Criteria
+- [ ] The endpoint `GET /multiply?a=X&b=Y` returns a JSON response with the correct multiplication result.
+- [ ] The following test cases are implemented and pass:
+  - Input: `3` and `4`, Output: `{"result": 12}`
+  - Input: `0` and `5`, Output: `{"result": 0}`
+  - Input: `-2` and `3`, Output: `{"result": -6}`
 
-1) **Backend unit/service tests (pytest)**: business logic, helpers.
-2) **Backend API contract tests (pytest + FastAPI TestClient)**: endpoints, validation, responses.
-3) **Frontend component tests (Vitest/Jest + React Testing Library)**: UI behavior (if web frontend exists).
-4) **E2E smoke (Playwright)**: only for critical cross-stack flows.
+## Implementation Notes
+- Use the existing API framework (e.g., FastAPI) to create the endpoint.
+- Ensure proper validation of input parameters (X and Y should be numbers).
 
-## How to test locally
-- Backend: `python -m pytest`
-- Frontend (if applicable): `npm test`
+## Test Plan
+1. **Backend unit tests**: Implement tests using `pytest` to verify the multiplication logic.
+2. **API contract tests**: Use `pytest` with FastAPI TestClient to validate the endpoint's response format and correctness.
 
-## Notes / Constraints
-- Keep PR small and focused.
-- If acceptance criteria can’t be tested, mark task as blocked and explain why.
+## Rollback/Safety
+- If any issues arise during implementation, revert to the last stable commit before the changes.
+- Ensure all tests pass before merging the changes.
+
+---
+
+_Spec upgraded by manager: 2023-10-05T12:00:00Z_
