@@ -8,3 +8,10 @@ def test_health_ok():
     r = client.get('/health')
     assert r.status_code == 200
     assert r.json() == {"status": "healthy"}
+
+
+def test_healthz_ok():
+    client = TestClient(app)
+    r = client.get('/healthz')
+    assert r.status_code == 200
+    assert r.json() == {"status": "healthy"}
