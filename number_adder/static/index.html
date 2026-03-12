@@ -4,62 +4,117 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Number Adder</title>
+    <script>
+        (function () {
+            const savedTheme = localStorage.getItem('theme');
+            const theme = savedTheme === 'dark' ? 'dark' : 'light';
+            document.documentElement.setAttribute('data-theme', theme);
+        })();
+    </script>
     <style>
+        :root {
+            --page-bg: #f5f5f5;
+            --surface-bg: #ffffff;
+            --surface-alt-bg: #1e1e1e;
+            --text-primary: #333333;
+            --text-secondary: #666666;
+            --border-color: #dddddd;
+            --shadow-color: rgba(0, 0, 0, 0.1);
+            --shadow-strong: rgba(0, 0, 0, 0.12);
+            --self-btn-bg: #ffffff;
+            --self-btn-hover: #f5f5f5;
+            --error-text: #dc3545;
+            --error-bg: #f8d7da;
+            --toggle-bg: #ffffff;
+            --toggle-text: #333333;
+        }
+        [data-theme="dark"] {
+            --page-bg: #111827;
+            --surface-bg: #1f2937;
+            --surface-alt-bg: #0f172a;
+            --text-primary: #f3f4f6;
+            --text-secondary: #cbd5e1;
+            --border-color: #374151;
+            --shadow-color: rgba(0, 0, 0, 0.45);
+            --shadow-strong: rgba(0, 0, 0, 0.55);
+            --self-btn-bg: #111827;
+            --self-btn-hover: #1f2937;
+            --error-text: #fecaca;
+            --error-bg: #7f1d1d;
+            --toggle-bg: #1f2937;
+            --toggle-text: #f3f4f6;
+        }
         * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f5; min-height: 100vh; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--page-bg); color: var(--text-primary); min-height: 100vh; }
         .container { max-width: 800px; margin: 0 auto; padding: 40px 20px; }
+        .theme-toggle {
+            position: fixed;
+            top: 16px;
+            right: 16px;
+            border: 1px solid var(--border-color);
+            border-radius: 999px;
+            padding: 8px 12px;
+            background: var(--toggle-bg);
+            color: var(--toggle-text);
+            font-size: 13px;
+            cursor: pointer;
+            box-shadow: 0 2px 8px var(--shadow-color);
+            z-index: 10;
+        }
+        .theme-toggle:hover { opacity: 0.9; }
         .brand { display: flex; align-items: center; justify-content: center; gap: 12px; margin-bottom: 10px; }
-        .logo { width: 44px; height: 44px; border-radius: 14px; box-shadow: 0 4px 16px rgba(0,0,0,0.12); }
-        h1 { text-align: center; color: #333; font-size: 2.5em; }
-        .subtitle { text-align: center; color: #666; margin-bottom: 40px; font-size: 1.2em; }
+        .logo { width: 44px; height: 44px; border-radius: 14px; box-shadow: 0 4px 16px var(--shadow-strong); }
+        h1 { text-align: center; color: var(--text-primary); font-size: 2.5em; }
+        .subtitle { text-align: center; color: var(--text-secondary); margin-bottom: 40px; font-size: 1.2em; }
 
         /* Options grid */
         .options { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 30px; }
         @media (max-width: 600px) { .options { grid-template-columns: 1fr; } }
-        .option-card { background: white; border-radius: 12px; padding: 30px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); text-align: center; cursor: pointer; border: 2px solid transparent; transition: all 0.2s; }
+        .option-card { background: var(--surface-bg); border-radius: 12px; padding: 30px; box-shadow: 0 2px 10px var(--shadow-color); text-align: center; cursor: pointer; border: 2px solid transparent; transition: all 0.2s; }
         .option-card:hover { border-color: #007bff; transform: translateY(-2px); }
-        .option-card h2 { margin-bottom: 10px; color: #333; }
-        .option-card p { color: #666; margin-bottom: 20px; font-size: 14px; }
+        .option-card h2 { margin-bottom: 10px; color: var(--text-primary); }
+        .option-card p { color: var(--text-secondary); margin-bottom: 20px; font-size: 14px; }
         .option-card .badge { display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 12px; margin-bottom: 15px; }
         .cloud-badge { background: #e3f2fd; color: #1976d2; }
         .self-badge { background: #f3e5f5; color: #7b1fa2; }
         .option-card button { padding: 12px 30px; border: none; border-radius: 6px; font-size: 16px; cursor: pointer; }
         .cloud-btn { background: #007bff; color: white; }
         .cloud-btn:hover { background: #0056b3; }
-        .self-btn { background: white; color: #333; border: 1px solid #ddd; }
-        .self-btn:hover { background: #f5f5f5; }
-        .code-block { background: #1e1e1e; color: #d4d4d4; padding: 12px 16px; border-radius: 6px; font-family: monospace; font-size: 14px; margin-top: 15px; text-align: left; }
+        .self-btn { background: var(--self-btn-bg); color: var(--text-primary); border: 1px solid var(--border-color); }
+        .self-btn:hover { background: var(--self-btn-hover); }
+        .code-block { background: var(--surface-alt-bg); color: #d4d4d4; padding: 12px 16px; border-radius: 6px; font-family: monospace; font-size: 14px; margin-top: 15px; text-align: left; }
 
         /* Auth card (hidden by default) */
-        .auth-card { display: none; max-width: 400px; margin: 0 auto; background: white; border-radius: 12px; padding: 30px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .auth-card { display: none; max-width: 400px; margin: 0 auto; background: var(--surface-bg); border-radius: 12px; padding: 30px; box-shadow: 0 2px 10px var(--shadow-color); }
         .auth-card.active { display: block; }
         .back-link { display: inline-block; margin-bottom: 20px; color: #007bff; cursor: pointer; font-size: 14px; }
         .tabs { display: flex; margin-bottom: 20px; }
-        .tab { flex: 1; padding: 10px; text-align: center; cursor: pointer; border-bottom: 2px solid #ddd; }
+        .tab { flex: 1; padding: 10px; text-align: center; cursor: pointer; border-bottom: 2px solid var(--border-color); }
         .tab.active { border-bottom-color: #007bff; color: #007bff; }
         .form { display: none; }
         .form.active { display: block; }
-        label { display: block; margin-bottom: 5px; color: #333; font-weight: 500; }
-        input[type="email"], input[type="password"] { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 4px; margin-bottom: 15px; font-size: 16px; }
+        label { display: block; margin-bottom: 5px; color: var(--text-primary); font-weight: 500; }
+        input[type="email"], input[type="password"] { width: 100%; padding: 12px; border: 1px solid var(--border-color); background: var(--surface-bg); color: var(--text-primary); border-radius: 4px; margin-bottom: 15px; font-size: 16px; }
         .auth-btn { width: 100%; padding: 12px; background: #007bff; color: white; border: none; border-radius: 4px; font-size: 16px; cursor: pointer; }
         .auth-btn:hover { background: #0056b3; }
-        .error { color: #dc3545; margin-bottom: 15px; padding: 10px; background: #f8d7da; border-radius: 4px; display: none; }
-        .divider { text-align: center; margin: 20px 0; color: #666; }
-        .google-btn { width: 100%; padding: 12px; background: white; color: #333; border: 1px solid #ddd; border-radius: 4px; font-size: 16px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px; }
-        .google-btn:hover { background: #f5f5f5; }
+        .error { color: var(--error-text); margin-bottom: 15px; padding: 10px; background: var(--error-bg); border-radius: 4px; display: none; }
+        .divider { text-align: center; margin: 20px 0; color: var(--text-secondary); }
+        .google-btn { width: 100%; padding: 12px; background: var(--surface-bg); color: var(--text-primary); border: 1px solid var(--border-color); border-radius: 4px; font-size: 16px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px; }
+        .google-btn:hover { background: var(--self-btn-hover); }
         .consent { display: flex; align-items: flex-start; gap: 8px; margin-bottom: 15px; font-size: 14px; }
         .consent input { margin-top: 3px; width: auto; }
-        .consent label { font-weight: normal; color: #666; }
+        .consent label { font-weight: normal; color: var(--text-secondary); }
         .consent a { color: #007bff; }
-        .oauth-note { font-size: 12px; color: #666; text-align: center; margin-top: 10px; }
+        .oauth-note { font-size: 12px; color: var(--text-secondary); text-align: center; margin-top: 10px; }
         .oauth-note a { color: #007bff; }
 
-        .footer { text-align: center; margin-top: 30px; font-size: 14px; color: #666; }
+        .footer { text-align: center; margin-top: 30px; font-size: 14px; color: var(--text-secondary); }
         .footer a { color: #007bff; margin: 0 10px; }
         .footer .version { margin-left: 10px; }
     </style>
 </head>
 <body>
+    <button id="theme-toggle" class="theme-toggle" type="button" aria-label="Toggle dark mode" aria-pressed="false">Dark mode</button>
     <div class="container">
         <div class="brand">
             <img class="logo" src="assets/logo.svg" alt="Number Adder logo" />
@@ -135,6 +190,31 @@
 
     <script>
         const API = '';
+        const THEME_KEY = 'theme';
+
+        function setTheme(theme) {
+            const nextTheme = theme === 'dark' ? 'dark' : 'light';
+            document.documentElement.setAttribute('data-theme', nextTheme);
+            localStorage.setItem(THEME_KEY, nextTheme);
+            const toggle = document.getElementById('theme-toggle');
+            if (toggle) {
+                const darkModeEnabled = nextTheme === 'dark';
+                toggle.textContent = darkModeEnabled ? 'Light mode' : 'Dark mode';
+                toggle.setAttribute('aria-pressed', darkModeEnabled ? 'true' : 'false');
+            }
+        }
+
+        function initThemeToggle() {
+            const savedTheme = localStorage.getItem(THEME_KEY);
+            setTheme(savedTheme === 'dark' ? 'dark' : 'light');
+
+            const toggle = document.getElementById('theme-toggle');
+            if (!toggle) return;
+            toggle.addEventListener('click', () => {
+                const currentTheme = document.documentElement.getAttribute('data-theme');
+                setTheme(currentTheme === 'dark' ? 'light' : 'dark');
+            });
+        }
 
         async function loadVersion() {
             const versionEl = document.getElementById('app-version');
@@ -237,6 +317,7 @@
             window.location.href = '/dashboard.html';
         }
 
+        initThemeToggle();
         loadVersion();
     </script>
 </body>
