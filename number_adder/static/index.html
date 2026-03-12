@@ -128,6 +128,7 @@
             <a href="/privacy.html">Privacy Policy</a>
             <a href="https://github.com/adityasudhakar/number-adder" target="_blank">GitHub</a>
             <a href="https://pypi.org/project/number-adder/" target="_blank">PyPI</a>
+            <span id="app-version">v-</span>
         </div>
     </div>
 
@@ -208,10 +209,34 @@
             window.location.href = `${API}/auth/google`;
         }
 
+        async function loadVersion() {
+            const versionEl = document.getElementById('app-version');
+            if (!versionEl) return;
+
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 4000);
+
+            try {
+                const res = await fetch('/version', { signal: controller.signal });
+                if (!res.ok) return;
+
+                const data = await res.json();
+                if (data && typeof data.version === 'string' && data.version.trim()) {
+                    versionEl.textContent = `v${data.version.trim()}`;
+                }
+            } catch (_) {
+                // Keep neutral fallback when version is unavailable.
+            } finally {
+                clearTimeout(timeoutId);
+            }
+        }
+
         // Check if already logged in
         if (localStorage.getItem('token')) {
             window.location.href = '/dashboard.html';
         }
+
+        loadVersion();
     </script>
 </body>
 </html>
