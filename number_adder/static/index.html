@@ -57,6 +57,7 @@
 
         .footer { text-align: center; margin-top: 30px; font-size: 14px; color: #666; }
         .footer a { color: #007bff; margin: 0 10px; }
+        .footer .version { margin-left: 10px; color: #888; }
     </style>
 </head>
 <body>
@@ -129,6 +130,7 @@
             <a href="/privacy.html">Privacy Policy</a>
             <a href="https://github.com/adityasudhakar/number-adder" target="_blank">GitHub</a>
             <a href="https://pypi.org/project/number-adder/" target="_blank">PyPI</a>
+            <span id="app-version" class="version" hidden></span>
         </div>
     </div>
 
@@ -209,10 +211,33 @@
             window.location.href = `${API}/auth/google`;
         }
 
+        async function loadVersion() {
+            const el = document.getElementById('app-version');
+            if (!el) return;
+
+            try {
+                const res = await fetch('/version');
+                if (!res.ok) throw new Error('Version endpoint unavailable');
+
+                const data = await res.json();
+                if (!data || typeof data.version !== 'string' || !data.version.trim()) {
+                    throw new Error('Invalid version response');
+                }
+
+                el.textContent = `v${data.version.trim()}`;
+                el.hidden = false;
+            } catch (_) {
+                el.textContent = 'version unavailable';
+                el.hidden = false;
+            }
+        }
+
         // Check if already logged in
         if (localStorage.getItem('token')) {
             window.location.href = '/dashboard.html';
         }
+
+        loadVersion();
     </script>
 </body>
 </html>
