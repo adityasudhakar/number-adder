@@ -426,6 +426,7 @@ def get_api_key_status(user_id: Annotated[int, Depends(get_current_user_id)]):
 
 # Health check
 @app.get("/health")
+@app.get("/healthz")
 def health():
     """Health check endpoint."""
     return {"status": "healthy"}
