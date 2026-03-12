@@ -56,6 +56,7 @@
 
         .footer { text-align: center; margin-top: 30px; font-size: 14px; color: #666; }
         .footer a { color: #007bff; margin: 0 10px; }
+        .footer .version { margin-left: 10px; color: #888; }
     </style>
 </head>
 <body>
@@ -128,6 +129,7 @@
             <a href="/privacy.html">Privacy Policy</a>
             <a href="https://github.com/adityasudhakar/number-adder" target="_blank">GitHub</a>
             <a href="https://pypi.org/project/number-adder/" target="_blank">PyPI</a>
+            <span id="app-version" class="version" aria-live="polite">v-</span>
         </div>
     </div>
 
@@ -208,10 +210,32 @@
             window.location.href = `${API}/auth/google`;
         }
 
+        async function loadVersion() {
+            const versionEl = document.getElementById('app-version');
+            if (!versionEl) return;
+
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 3000);
+
+            try {
+                const res = await fetch('/version', { signal: controller.signal });
+                if (!res.ok) return;
+                const data = await res.json();
+                if (!data || typeof data.version !== 'string' || !data.version.trim()) return;
+                versionEl.textContent = `v${data.version.trim()}`;
+            } catch (_) {
+                // Keep neutral placeholder on failure.
+            } finally {
+                clearTimeout(timeoutId);
+            }
+        }
+
         // Check if already logged in
         if (localStorage.getItem('token')) {
             window.location.href = '/dashboard.html';
         }
+
+        loadVersion();
     </script>
 </body>
 </html>
