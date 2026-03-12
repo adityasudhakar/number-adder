@@ -56,6 +56,7 @@
 
         .footer { text-align: center; margin-top: 30px; font-size: 14px; color: #666; }
         .footer a { color: #007bff; margin: 0 10px; }
+        .footer .version { margin-left: 10px; }
     </style>
 </head>
 <body>
@@ -128,11 +129,34 @@
             <a href="/privacy.html">Privacy Policy</a>
             <a href="https://github.com/adityasudhakar/number-adder" target="_blank">GitHub</a>
             <a href="https://pypi.org/project/number-adder/" target="_blank">PyPI</a>
+            <span class="version">Version <span id="app-version" aria-live="polite">v-</span></span>
         </div>
     </div>
 
     <script>
         const API = '';
+
+        async function loadVersion() {
+            const versionEl = document.getElementById('app-version');
+            if (!versionEl) return;
+
+            const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+            const timeoutId = controller ? setTimeout(() => controller.abort(), 3000) : null;
+
+            try {
+                const response = await fetch('/version', controller ? { signal: controller.signal } : undefined);
+                if (!response.ok) return;
+
+                const data = await response.json();
+                if (data && typeof data.version === 'string' && data.version.trim()) {
+                    versionEl.textContent = `v${data.version.trim()}`;
+                }
+            } catch (_) {
+                // Keep neutral fallback text on failure.
+            } finally {
+                if (timeoutId) clearTimeout(timeoutId);
+            }
+        }
 
         function showAuth() {
             document.getElementById('options-view').style.display = 'none';
@@ -212,6 +236,8 @@
         if (localStorage.getItem('token')) {
             window.location.href = '/dashboard.html';
         }
+
+        loadVersion();
     </script>
 </body>
 </html>
