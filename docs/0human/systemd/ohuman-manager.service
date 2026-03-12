@@ -1,0 +1,21 @@
+[Unit]
+Description=0human Manager (sanitized template)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/0human/manager
+EnvironmentFile=/etc/default/ohuman-manager
+ExecStart=/opt/0human/manager/manager.sh
+User=hellouser
+Group=hellouser
+
+# Hardening (adjust to your needs)
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,11 @@
+[Unit]
+Description=Run 0human Manager periodically
+
+[Timer]
+OnBootSec=30s
+OnUnitActiveSec=30s
+AccuracySec=5s
+Unit=ohuman-manager.service
+
+[Install]
+WantedBy=timers.target

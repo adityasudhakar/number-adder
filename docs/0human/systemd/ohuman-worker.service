@@ -1,0 +1,22 @@
+[Unit]
+Description=0human Worker (sanitized template)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/0human/worker
+EnvironmentFile=/etc/default/ohuman-worker
+ExecStart=/opt/0human/worker/run_once.sh
+User=hellouser
+Group=hellouser
+
+# If you want looping behavior, wrap run_once.sh with a small loop script.
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+
+[Install]
+WantedBy=multi-user.target
