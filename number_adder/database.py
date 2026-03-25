@@ -599,8 +599,19 @@ def get_user_calculator_role(calc_id: int, user_id: int) -> str | None:
 
 # Calculator permission checks
 
+def _is_org_admin_for_calculator(calc_id: int, user_id: int) -> bool:
+    """Check if user is an org admin for the calculator's organization."""
+    calc = get_calculator(calc_id)
+    if not calc:
+        return False
+    return is_org_admin(calc["organization_id"], user_id)
+
+
 def is_calculator_admin(calc_id: int, user_id: int) -> bool:
-    """Check if user is an admin of the calculator."""
+    """Check if user is an admin of the calculator (or org admin)."""
+    # Org admins have implicit admin access to all calculators in their org
+    if _is_org_admin_for_calculator(calc_id, user_id):
+        return True
     role = get_user_calculator_role(calc_id, user_id)
     return role == 'admin'
 
@@ -612,19 +623,25 @@ def is_calculator_operator(calc_id: int, user_id: int) -> bool:
 
 
 def can_operate_calculator(calc_id: int, user_id: int) -> bool:
-    """Check if user can perform calculations (admin or operator)."""
+    """Check if user can perform calculations (admin, operator, or org admin)."""
+    # Org admins can operate any calculator in their org
+    if _is_org_admin_for_calculator(calc_id, user_id):
+        return True
     role = get_user_calculator_role(calc_id, user_id)
     return role in ('admin', 'operator')
 
 
 def can_view_calculator(calc_id: int, user_id: int) -> bool:
-    """Check if user can view calculator (any role)."""
+    """Check if user can view calculator (any role or org admin)."""
+    # Org admins can view any calculator in their org
+    if _is_org_admin_for_calculator(calc_id, user_id):
+        return True
     role = get_user_calculator_role(calc_id, user_id)
     return role is not None
 
 
 def can_manage_calculator(calc_id: int, user_id: int) -> bool:
-    """Check if user can manage calculator settings and users (admin only)."""
+    """Check if user can manage calculator settings and users (admin or org admin)."""
     return is_calculator_admin(calc_id, user_id)
 
 

@@ -168,9 +168,9 @@
                 <div class="form-row" id="add-calc-user-form" style="display: none;">
                     <input type="email" id="new-calc-user-email" placeholder="User email">
                     <select id="new-calc-user-role">
-                        <option value="viewer">Viewer</option>
-                        <option value="operator">Operator</option>
-                        <option value="admin">Admin</option>
+                        <option value="operator">Operator (can use)</option>
+                        <option value="viewer">Viewer (read-only)</option>
+                        <option value="admin">Admin (full control)</option>
                     </select>
                     <button class="btn btn-success" onclick="addCalcUser()">Add</button>
                 </div>
@@ -239,13 +239,13 @@
                 }
 
                 list.innerHTML = data.organizations.map(org => `
-                    <div class="list-item" onclick="selectOrg(${org.id}, '${org.name}', '${org.role}')">
-                        <div class="list-item-info">
+                    <div class="list-item">
+                        <div class="list-item-info" onclick="selectOrg(${org.id}, '${org.name}', '${org.role}')" style="cursor: pointer;">
                             <div class="list-item-name">${org.name}</div>
-                            <div class="list-item-meta">Created: ${new Date(org.created_at).toLocaleDateString()}</div>
+                            <div class="list-item-meta">Your role: ${org.role}</div>
                         </div>
                         <div class="list-item-actions">
-                            <span class="badge ${getBadgeClass(org.role)}">${org.role}</span>
+                            ${org.role === 'admin' ? `<button class="btn btn-sm btn-danger" onclick="deleteOrg(${org.id}, '${org.name}')">Delete</button>` : ''}
                         </div>
                     </div>
                 `).join('');
@@ -266,6 +266,22 @@
                 if (!res.ok) throw new Error((await res.json()).detail);
                 document.getElementById('new-org-name').value = '';
                 showMessage('Organization created!');
+                loadOrganizations();
+            } catch (err) {
+                showMessage(err.message, true);
+            }
+        }
+
+        async function deleteOrg(orgId, orgName) {
+            if (!confirm(`Delete organization "${orgName}"? This will delete all calculators and data.`)) return;
+
+            try {
+                const res = await fetchWithAuth(`${API}/organizations/${orgId}`, {
+                    method: 'DELETE'
+                });
+                if (!res.ok) throw new Error((await res.json()).detail);
+                showMessage('Organization deleted');
+                document.getElementById('org-details').style.display = 'none';
                 loadOrganizations();
             } catch (err) {
                 showMessage(err.message, true);
@@ -309,14 +325,14 @@
                 }
 
                 list.innerHTML = data.calculators.map(calc => `
-                    <div class="list-item" onclick="selectCalculator(${calc.id}, '${calc.name}', '${calc.role}', ${calc.can_operate}, ${calc.is_admin})">
-                        <div class="list-item-info">
+                    <div class="list-item">
+                        <div class="list-item-info" onclick="selectCalculator(${calc.id}, '${calc.name}', '${calc.role}', ${calc.can_operate}, ${calc.is_admin})" style="cursor: pointer;">
                             <span class="access-indicator ${calc.has_access ? 'has-access' : 'no-access'}"></span>
                             <span class="list-item-name" style="display: inline;">${calc.name}</span>
-                            <div class="list-item-meta">Created by: ${calc.created_by_email}</div>
+                            <div class="list-item-meta">Your role: ${calc.role || 'none'} ${calc.can_operate ? '(can use)' : '(view only)'}</div>
                         </div>
                         <div class="list-item-actions">
-                            ${calc.role ? `<span class="badge ${getBadgeClass(calc.role)}">${calc.role}</span>` : '<span class="badge badge-viewer" style="opacity: 0.5;">No Access</span>'}
+                            ${calc.is_admin ? `<button class="btn btn-sm btn-danger" onclick="deleteCalculator(${calc.id}, '${calc.name}')">Delete</button>` : ''}
                         </div>
                     </div>
                 `).join('');
@@ -337,6 +353,22 @@
                 if (!res.ok) throw new Error((await res.json()).detail);
                 document.getElementById('new-calc-name').value = '';
                 showMessage('Calculator created!');
+                loadCalculators();
+            } catch (err) {
+                showMessage(err.message, true);
+            }
+        }
+
+        async function deleteCalculator(calcId, calcName) {
+            if (!confirm(`Delete calculator "${calcName}"? This will delete all calculation history.`)) return;
+
+            try {
+                const res = await fetchWithAuth(`${API}/calculators/${calcId}`, {
+                    method: 'DELETE'
+                });
+                if (!res.ok) throw new Error((await res.json()).detail);
+                showMessage('Calculator deleted');
+                document.getElementById('calc-details').style.display = 'none';
                 loadCalculators();
             } catch (err) {
                 showMessage(err.message, true);
@@ -422,10 +454,10 @@
                     <div class="list-item">
                         <div class="list-item-info">
                             <div class="list-item-name">${u.email}</div>
-                            <div class="list-item-meta">Joined: ${new Date(u.joined_at).toLocaleDateString()}</div>
+                            <div class="list-item-meta">Role: ${u.role} | Joined: ${new Date(u.joined_at).toLocaleDateString()}</div>
                         </div>
                         <div class="list-item-actions">
-                            <span class="badge ${getBadgeClass(u.role)}">${u.role}</span>
+                            ${selectedOrgRole === 'admin' ? `<button class="btn btn-sm btn-danger" onclick="removeMember(${u.id}, '${u.email}')">Remove</button>` : ''}
                         </div>
                     </div>
                 `).join('');
@@ -453,6 +485,21 @@
             }
         }
 
+        async function removeMember(userId, email) {
+            if (!confirm(`Remove ${email} from this organization?`)) return;
+
+            try {
+                const res = await fetchWithAuth(`${API}/organizations/${selectedOrgId}/users/${userId}`, {
+                    method: 'DELETE'
+                });
+                if (!res.ok) throw new Error((await res.json()).detail);
+                showMessage('Member removed');
+                loadMembers();
+            } catch (err) {
+                showMessage(err.message, true);
+            }
+        }
+
         // Calculator user functions
         async function loadCalcUsers() {
             if (!selectedCalcId) return;
@@ -465,15 +512,30 @@
                     <div class="list-item">
                         <div class="list-item-info">
                             <div class="list-item-name">${u.email}</div>
-                            <div class="list-item-meta">Added: ${new Date(u.granted_at).toLocaleDateString()}</div>
+                            <div class="list-item-meta">Role: ${u.role} | Added: ${new Date(u.granted_at).toLocaleDateString()}</div>
                         </div>
                         <div class="list-item-actions">
-                            <span class="badge ${getBadgeClass(u.role)}">${u.role}</span>
+                            <button class="btn btn-sm btn-danger" onclick="removeCalcUser(${u.id}, '${u.email}')">Remove</button>
                         </div>
                     </div>
                 `).join('');
             } catch (err) {
                 document.getElementById('calc-user-list').innerHTML = '<div class="empty">Unable to load users</div>';
+            }
+        }
+
+        async function removeCalcUser(userId, email) {
+            if (!confirm(`Remove ${email} from this calculator?`)) return;
+
+            try {
+                const res = await fetchWithAuth(`${API}/calculators/${selectedCalcId}/users/${userId}`, {
+                    method: 'DELETE'
+                });
+                if (!res.ok) throw new Error((await res.json()).detail);
+                showMessage('User removed from calculator');
+                loadCalcUsers();
+            } catch (err) {
+                showMessage(err.message, true);
             }
         }
 
