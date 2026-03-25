@@ -431,3 +431,34 @@ This design is based on [vanna-ai/vanna-hosted](https://github.com/vanna-ai/vann
 3. **User can belong to multiple orgs:** Yes, like Slack workspaces. Each org membership has independent role.
 
 4. **Default on signup:** New users don't belong to any org. They must create one or be invited.
+
+---
+
+## Handoff Notes (2026-03-25)
+
+### Current Goal
+Fix org admin implicit calculator access - org admins should be able to use/manage all calculators in their org without being explicitly added.
+
+### What Works
+- Organizations CRUD (create, list, delete)
+- Org user management (add, remove members)
+- Calculators CRUD (create, list)
+- Calculator user management (add, remove)
+- Calculator operations (add numbers, view history)
+- Permission enforcement on API endpoints
+- 83 tests passing
+- Frontend with delete/remove buttons
+
+### What Is Broken
+- **NEED TO VERIFY**: Just added `_is_org_admin_for_calculator()` in database.py to give org admins implicit calculator access. NOT YET TESTED.
+- Frontend `get_organization_calculators()` SQL query still returns `role: null` for org admins (doesn't reflect implicit access). May need to update the SQL or post-process in Python.
+
+### Files Touched (this session)
+- `number_adder/database.py` - Added org admin implicit calculator access
+- `number_adder/static/organizations.html` - Delete buttons, improved role display
+
+### Next Steps
+1. Test that org admin can now use calculators (refresh browser, try ns1-marketing)
+2. If it works, the SQL in `get_organization_calculators()` still shows "role: none" - update it to show "admin (org)" or similar for org admins
+3. Run tests: `DATABASE_URL="postgresql://localhost/number_adder_test" python -m pytest`
+4. Commit and update this notes.md
