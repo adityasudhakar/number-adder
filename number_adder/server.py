@@ -114,6 +114,37 @@ class ApiKeyStatusResponse(BaseModel):
     has_api_key: bool
 
 
+# Organization models
+class CreateOrganizationRequest(BaseModel):
+    name: str
+
+
+class OrganizationResponse(BaseModel):
+    id: int
+    name: str
+    created_at: datetime
+    role: str | None = None  # User's role in this org
+    is_admin: bool = False
+    is_manager: bool = False
+    can_invite: bool = False
+
+
+class AddUserToOrgRequest(BaseModel):
+    email: EmailStr
+    role: str  # 'admin', 'manager', or 'member'
+
+
+class UpdateUserRoleRequest(BaseModel):
+    role: str  # 'admin', 'manager', or 'member'
+
+
+class OrgUserResponse(BaseModel):
+    id: int
+    email: str
+    role: str
+    joined_at: datetime
+
+
 # Analytics helper
 def track_event(user_id: int, event: str, properties: dict = None):
     """Track an event in PostHog if configured."""
@@ -422,6 +453,218 @@ def revoke_api_key(user_id: Annotated[int, Depends(get_current_user_id)]):
 def get_api_key_status(user_id: Annotated[int, Depends(get_current_user_id)]):
     """Check if user has an active API key."""
     return ApiKeyStatusResponse(has_api_key=db.has_api_key(user_id))
+
+
+# =============================================================================
+# Organization endpoints (multi-tenancy)
+# =============================================================================
+
+@app.post("/organizations", response_model=OrganizationResponse)
+def create_organization(
+    request: CreateOrganizationRequest,
+    user_id: Annotated[int, Depends(get_current_user_id_flexible)]
+):
+    """Create a new organization. Creator becomes admin."""
+    org_id = db.create_organization(request.name, user_id)
+    org = db.get_organization(org_id)
+
+    track_event(user_id, "organization_created", {"org_id": org_id, "org_name": request.name})
+
+    return OrganizationResponse(
+        id=org["id"],
+        name=org["name"],
+        created_at=org["created_at"],
+        role="admin",
+        is_admin=True,
+        is_manager=False,
+        can_invite=True
+    )
+
+
+@app.get("/organizations")
+def list_organizations(user_id: Annotated[int, Depends(get_current_user_id_flexible)]):
+    """List all organizations the user belongs to."""
+    orgs = db.get_user_organizations(user_id)
+    return {
+        "organizations": [
+            OrganizationResponse(
+                id=org["id"],
+                name=org["name"],
+                created_at=org["created_at"],
+                role=org["role"],
+                is_admin=org["role"] == "admin",
+                is_manager=org["role"] == "manager",
+                can_invite=org["role"] in ("admin", "manager")
+            )
+            for org in orgs
+        ]
+    }
+
+
+@app.get("/organizations/{org_id}", response_model=OrganizationResponse)
+def get_organization(
+    org_id: int,
+    user_id: Annotated[int, Depends(get_current_user_id_flexible)]
+):
+    """Get organization details. User must be a member."""
+    # Check membership
+    if not db.is_org_member(org_id, user_id):
+        raise HTTPException(status_code=403, detail="Not a member of this organization")
+
+    org = db.get_organization(org_id)
+    if not org:
+        raise HTTPException(status_code=404, detail="Organization not found")
+
+    role = db.get_user_org_role(org_id, user_id)
+
+    return OrganizationResponse(
+        id=org["id"],
+        name=org["name"],
+        created_at=org["created_at"],
+        role=role,
+        is_admin=role == "admin",
+        is_manager=role == "manager",
+        can_invite=role in ("admin", "manager")
+    )
+
+
+@app.delete("/organizations/{org_id}")
+def delete_organization(
+    org_id: int,
+    user_id: Annotated[int, Depends(get_current_user_id_flexible)]
+):
+    """Delete an organization. Admin only."""
+    if not db.is_org_admin(org_id, user_id):
+        raise HTTPException(status_code=403, detail="Only org admins can delete the organization")
+
+    success = db.delete_organization(org_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Organization not found")
+
+    track_event(user_id, "organization_deleted", {"org_id": org_id})
+
+    return {"message": "Organization deleted successfully"}
+
+
+# Organization user management
+
+@app.get("/organizations/{org_id}/users")
+def list_organization_users(
+    org_id: int,
+    user_id: Annotated[int, Depends(get_current_user_id_flexible)]
+):
+    """List users in an organization. Admin or manager only."""
+    if not db.can_manage_org_users(org_id, user_id):
+        raise HTTPException(status_code=403, detail="Only admins and managers can view org users")
+
+    users = db.get_organization_users(org_id)
+    return {
+        "users": [
+            OrgUserResponse(
+                id=u["id"],
+                email=u["email"],
+                role=u["role"],
+                joined_at=u["joined_at"]
+            )
+            for u in users
+        ]
+    }
+
+
+@app.post("/organizations/{org_id}/users")
+def add_user_to_organization(
+    org_id: int,
+    request: AddUserToOrgRequest,
+    user_id: Annotated[int, Depends(get_current_user_id_flexible)]
+):
+    """Add a user to an organization. Admin or manager only."""
+    # Validate role
+    if request.role not in ("admin", "manager", "member"):
+        raise HTTPException(status_code=400, detail="Invalid role. Must be admin, manager, or member")
+
+    # Check permission - only admins can add admins
+    caller_role = db.get_user_org_role(org_id, user_id)
+    if caller_role is None:
+        raise HTTPException(status_code=403, detail="Not a member of this organization")
+
+    if caller_role not in ("admin", "manager"):
+        raise HTTPException(status_code=403, detail="Only admins and managers can add users")
+
+    if request.role == "admin" and caller_role != "admin":
+        raise HTTPException(status_code=403, detail="Only admins can add other admins")
+
+    # Find or check if user exists
+    target_user = db.get_user_by_email(request.email)
+    if not target_user:
+        raise HTTPException(status_code=404, detail="User not found. They must register first.")
+
+    # Add user to org
+    success = db.add_user_to_organization(org_id, target_user["id"], request.role)
+    if not success:
+        raise HTTPException(status_code=400, detail="User is already in this organization")
+
+    track_event(user_id, "user_added_to_org", {
+        "org_id": org_id,
+        "added_user_email": request.email,
+        "role": request.role
+    })
+
+    return {"message": f"User {request.email} added to organization as {request.role}"}
+
+
+@app.delete("/organizations/{org_id}/users/{target_user_id}")
+def remove_user_from_organization(
+    org_id: int,
+    target_user_id: int,
+    user_id: Annotated[int, Depends(get_current_user_id_flexible)]
+):
+    """Remove a user from an organization. Admin only."""
+    if not db.is_org_admin(org_id, user_id):
+        raise HTTPException(status_code=403, detail="Only admins can remove users")
+
+    if target_user_id == user_id:
+        raise HTTPException(status_code=400, detail="Cannot remove yourself. Delete the org instead.")
+
+    success = db.remove_user_from_organization(org_id, target_user_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="User not found in organization")
+
+    track_event(user_id, "user_removed_from_org", {
+        "org_id": org_id,
+        "removed_user_id": target_user_id
+    })
+
+    return {"message": "User removed from organization"}
+
+
+@app.patch("/organizations/{org_id}/users/{target_user_id}")
+def update_user_role_in_organization(
+    org_id: int,
+    target_user_id: int,
+    request: UpdateUserRoleRequest,
+    user_id: Annotated[int, Depends(get_current_user_id_flexible)]
+):
+    """Update a user's role in an organization. Admin only."""
+    if not db.is_org_admin(org_id, user_id):
+        raise HTTPException(status_code=403, detail="Only admins can change roles")
+
+    if request.role not in ("admin", "manager", "member"):
+        raise HTTPException(status_code=400, detail="Invalid role. Must be admin, manager, or member")
+
+    if target_user_id == user_id:
+        raise HTTPException(status_code=400, detail="Cannot change your own role")
+
+    success = db.update_user_org_role(org_id, target_user_id, request.role)
+    if not success:
+        raise HTTPException(status_code=404, detail="User not found in organization")
+
+    track_event(user_id, "user_role_changed", {
+        "org_id": org_id,
+        "target_user_id": target_user_id,
+        "new_role": request.role
+    })
+
+    return {"message": f"User role updated to {request.role}"}
 
 
 # Health check

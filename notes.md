@@ -385,7 +385,11 @@ This design is based on [vanna-ai/vanna-hosted](https://github.com/vanna-ai/vann
 
 - [x] Created feature branch: `feature/multi-tenancy`
 - [x] Created this notes.md
-- [ ] Step 1: Schema - Organizations
+- [x] Step 1: Schema - Organizations (commit 4c7eb69)
+  - Added `organizations` and `organization_users` tables
+  - Added CRUD functions in database.py
+  - Added permission check functions (is_org_admin, etc.)
+  - Added 18 tests - all passing
 - [ ] Step 2: Org-level route protection
 - [ ] Step 3: Frontend - org permissions
 - [ ] Step 4: Schema - Calculators
