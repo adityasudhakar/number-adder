@@ -396,7 +396,15 @@ This design is based on [vanna-ai/vanna-hosted](https://github.com/vanna-ai/vann
   - Permission enforcement on all endpoints
   - Added Pydantic request/response models
   - Added 20 API tests - 38 total passing
-- [ ] Step 3: Frontend - org permissions (skipped for now - backend first)
+- [x] Step 3 & 6: Frontend - org and calculator permissions (commit 646bfa9)
+  - Created organizations.html with full multi-tenancy UI
+  - Shows user's organizations with role badges (admin/manager/member)
+  - Organization details with tabs for calculators and members
+  - Create org/calculator forms (visible only to admin/manager)
+  - Calculator operations (admin/operator only)
+  - Calculator history view (all roles with access)
+  - User management for orgs and calculators (admin only)
+  - Added navigation link from dashboard.html
 - [x] Step 4: Schema - Calculators (commit 48ff805)
   - Added `calculators` and `calculator_users` tables
   - Added `calculator_id` column to calculations table
@@ -409,7 +417,8 @@ This design is based on [vanna-ai/vanna-hosted](https://github.com/vanna-ai/vann
   - Added GET /calculators/{id}/history - view calculation history
   - Permission enforcement: viewer < operator < admin
   - Added 18 API tests - 79 total passing
-- [ ] Step 6: Frontend - calculator permissions
+
+**ALL STEPS COMPLETE - Multi-tenancy POC fully functional!**
 
 ---
 
