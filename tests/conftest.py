@@ -31,10 +31,14 @@ def test_db():
     # We delete in reverse order of dependencies
     with db.get_db() as conn:
         cursor = conn.cursor()
-        # Clear organization_users first (depends on both orgs and users)
-        cursor.execute("DELETE FROM organization_users")
-        # Clear calculations (depends on users)
+        # Clear calculator_users first (depends on calculators and users)
+        cursor.execute("DELETE FROM calculator_users")
+        # Clear calculations (depends on users and calculators)
         cursor.execute("DELETE FROM calculations")
+        # Clear calculators (depends on organizations)
+        cursor.execute("DELETE FROM calculators")
+        # Clear organization_users (depends on orgs and users)
+        cursor.execute("DELETE FROM organization_users")
         # Clear organizations
         cursor.execute("DELETE FROM organizations")
         # Clear users last

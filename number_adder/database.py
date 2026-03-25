@@ -88,6 +88,55 @@ def init_db():
             CREATE INDEX IF NOT EXISTS idx_org_users_org_id ON organization_users(organization_id)
         """)
 
+        # Calculators table - sub-resources within organizations
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS calculators (
+                id SERIAL PRIMARY KEY,
+                organization_id INTEGER NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+                name TEXT NOT NULL,
+                created_by_user_id INTEGER NOT NULL REFERENCES users(id),
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(organization_id, name)
+            )
+        """)
+
+        # Calculator users table - maps users to calculators with roles
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS calculator_users (
+                id SERIAL PRIMARY KEY,
+                calculator_id INTEGER NOT NULL REFERENCES calculators(id) ON DELETE CASCADE,
+                user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                role TEXT NOT NULL CHECK (role IN ('admin', 'operator', 'viewer')),
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(calculator_id, user_id)
+            )
+        """)
+
+        # Indexes for calculator lookups
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_calc_users_user_id ON calculator_users(user_id)
+        """)
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_calc_users_calc_id ON calculator_users(calculator_id)
+        """)
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_calculators_org_id ON calculators(organization_id)
+        """)
+
+        # Add calculator_id column to calculations table (if not exists)
+        # This links calculations to specific calculators
+        cursor.execute("""
+            DO $$
+            BEGIN
+                IF NOT EXISTS (
+                    SELECT 1 FROM information_schema.columns
+                    WHERE table_name = 'calculations' AND column_name = 'calculator_id'
+                ) THEN
+                    ALTER TABLE calculations ADD COLUMN calculator_id INTEGER REFERENCES calculators(id) ON DELETE CASCADE;
+                END IF;
+            END $$;
+        """)
+
 
 # User operations
 def create_user(email: str, password_hash: str) -> int:
@@ -384,3 +433,233 @@ def can_manage_org_users(org_id: int, user_id: int) -> bool:
     """Check if user can add/remove users (admin or manager)."""
     role = get_user_org_role(org_id, user_id)
     return role in ('admin', 'manager')
+
+
+def can_create_calculators(org_id: int, user_id: int) -> bool:
+    """Check if user can create calculators (admin or manager)."""
+    role = get_user_org_role(org_id, user_id)
+    return role in ('admin', 'manager')
+
+
+# =============================================================================
+# Calculator operations (sub-resources within organizations)
+# =============================================================================
+
+def create_calculator(org_id: int, name: str, creator_user_id: int) -> int:
+    """Create a new calculator within an org. Creator becomes admin. Returns calculator ID."""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        # Create the calculator
+        cursor.execute(
+            "INSERT INTO calculators (organization_id, name, created_by_user_id) VALUES (%s, %s, %s) RETURNING id",
+            (org_id, name, creator_user_id)
+        )
+        calc_id = cursor.fetchone()["id"]
+
+        # Add creator as admin
+        cursor.execute(
+            "INSERT INTO calculator_users (calculator_id, user_id, role) VALUES (%s, %s, 'admin')",
+            (calc_id, creator_user_id)
+        )
+        return calc_id
+
+
+def get_calculator(calc_id: int) -> dict | None:
+    """Get calculator by ID."""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT c.id, c.organization_id, c.name, c.created_by_user_id, c.created_at,
+                   u.email as created_by_email
+            FROM calculators c
+            JOIN users u ON c.created_by_user_id = u.id
+            WHERE c.id = %s
+        """, (calc_id,))
+        row = cursor.fetchone()
+        return dict(row) if row else None
+
+
+def get_organization_calculators(org_id: int, user_id: int) -> list[dict]:
+    """Get all calculators in an org that a user has access to, with their role."""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT c.id, c.name, c.created_at,
+                   cu.role,
+                   u.email as created_by_email,
+                   CASE WHEN cu.role = 'admin' THEN true ELSE false END as is_admin,
+                   CASE WHEN cu.role IN ('admin', 'operator') THEN true ELSE false END as can_operate,
+                   CASE WHEN cu.role IS NOT NULL THEN true ELSE false END as has_access
+            FROM calculators c
+            JOIN users u ON c.created_by_user_id = u.id
+            LEFT JOIN calculator_users cu ON c.id = cu.calculator_id AND cu.user_id = %s
+            WHERE c.organization_id = %s
+            ORDER BY c.name
+        """, (user_id, org_id))
+        return [dict(row) for row in cursor.fetchall()]
+
+
+def get_user_calculators(user_id: int) -> list[dict]:
+    """Get all calculators a user has access to across all orgs."""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT c.id, c.name, c.organization_id, c.created_at,
+                   o.name as organization_name,
+                   cu.role,
+                   CASE WHEN cu.role = 'admin' THEN true ELSE false END as is_admin,
+                   CASE WHEN cu.role IN ('admin', 'operator') THEN true ELSE false END as can_operate
+            FROM calculators c
+            JOIN calculator_users cu ON c.id = cu.calculator_id
+            JOIN organizations o ON c.organization_id = o.id
+            WHERE cu.user_id = %s
+            ORDER BY o.name, c.name
+        """, (user_id,))
+        return [dict(row) for row in cursor.fetchall()]
+
+
+def delete_calculator(calc_id: int) -> bool:
+    """Delete a calculator (CASCADE will remove calculator_users and calculations)."""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM calculators WHERE id = %s", (calc_id,))
+        return cursor.rowcount > 0
+
+
+# Calculator user management
+
+def add_user_to_calculator(calc_id: int, user_id: int, role: str) -> bool:
+    """Add a user to a calculator with the specified role."""
+    if role not in ('admin', 'operator', 'viewer'):
+        raise ValueError(f"Invalid role: {role}")
+
+    with get_db() as conn:
+        cursor = conn.cursor()
+        try:
+            cursor.execute(
+                "INSERT INTO calculator_users (calculator_id, user_id, role) VALUES (%s, %s, %s)",
+                (calc_id, user_id, role)
+            )
+            return True
+        except psycopg2.IntegrityError:
+            # User already has access
+            return False
+
+
+def remove_user_from_calculator(calc_id: int, user_id: int) -> bool:
+    """Remove a user from a calculator."""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "DELETE FROM calculator_users WHERE calculator_id = %s AND user_id = %s",
+            (calc_id, user_id)
+        )
+        return cursor.rowcount > 0
+
+
+def update_user_calculator_role(calc_id: int, user_id: int, new_role: str) -> bool:
+    """Update a user's role on a calculator."""
+    if new_role not in ('admin', 'operator', 'viewer'):
+        raise ValueError(f"Invalid role: {new_role}")
+
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "UPDATE calculator_users SET role = %s WHERE calculator_id = %s AND user_id = %s",
+            (new_role, calc_id, user_id)
+        )
+        return cursor.rowcount > 0
+
+
+def get_calculator_users(calc_id: int) -> list[dict]:
+    """Get all users with access to a calculator."""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT u.id, u.email, cu.role, cu.created_at as granted_at
+            FROM users u
+            JOIN calculator_users cu ON u.id = cu.user_id
+            WHERE cu.calculator_id = %s
+            ORDER BY cu.role, u.email
+        """, (calc_id,))
+        return [dict(row) for row in cursor.fetchall()]
+
+
+def get_user_calculator_role(calc_id: int, user_id: int) -> str | None:
+    """Get a user's role on a calculator, or None if no access."""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT role FROM calculator_users WHERE calculator_id = %s AND user_id = %s",
+            (calc_id, user_id)
+        )
+        row = cursor.fetchone()
+        return row["role"] if row else None
+
+
+# Calculator permission checks
+
+def is_calculator_admin(calc_id: int, user_id: int) -> bool:
+    """Check if user is an admin of the calculator."""
+    role = get_user_calculator_role(calc_id, user_id)
+    return role == 'admin'
+
+
+def is_calculator_operator(calc_id: int, user_id: int) -> bool:
+    """Check if user is an operator of the calculator."""
+    role = get_user_calculator_role(calc_id, user_id)
+    return role == 'operator'
+
+
+def can_operate_calculator(calc_id: int, user_id: int) -> bool:
+    """Check if user can perform calculations (admin or operator)."""
+    role = get_user_calculator_role(calc_id, user_id)
+    return role in ('admin', 'operator')
+
+
+def can_view_calculator(calc_id: int, user_id: int) -> bool:
+    """Check if user can view calculator (any role)."""
+    role = get_user_calculator_role(calc_id, user_id)
+    return role is not None
+
+
+def can_manage_calculator(calc_id: int, user_id: int) -> bool:
+    """Check if user can manage calculator settings and users (admin only)."""
+    return is_calculator_admin(calc_id, user_id)
+
+
+# Calculator-scoped calculations
+
+def save_calculator_calculation(calc_id: int, user_id: int, num_a: float, num_b: float, result: float, operation: str = "add") -> int:
+    """Save a calculation to a specific calculator."""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "INSERT INTO calculations (calculator_id, user_id, operation, num_a, num_b, result) VALUES (%s, %s, %s, %s, %s, %s) RETURNING id",
+            (calc_id, user_id, operation, num_a, num_b, result)
+        )
+        return cursor.fetchone()["id"]
+
+
+def get_calculator_calculations(calc_id: int) -> list[dict]:
+    """Get all calculations for a calculator."""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT calc.id, calc.operation, calc.num_a, calc.num_b, calc.result, calc.created_at,
+                   u.email as performed_by
+            FROM calculations calc
+            JOIN users u ON calc.user_id = u.id
+            WHERE calc.calculator_id = %s
+            ORDER BY calc.created_at DESC
+        """, (calc_id,))
+        return [dict(row) for row in cursor.fetchall()]
+
+
+def get_calculator_for_org(calc_id: int) -> int | None:
+    """Get the organization ID for a calculator."""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT organization_id FROM calculators WHERE id = %s", (calc_id,))
+        row = cursor.fetchone()
+        return row["organization_id"] if row else None
