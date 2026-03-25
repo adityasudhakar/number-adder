@@ -390,7 +390,12 @@ This design is based on [vanna-ai/vanna-hosted](https://github.com/vanna-ai/vann
   - Added CRUD functions in database.py
   - Added permission check functions (is_org_admin, etc.)
   - Added 18 tests - all passing
-- [ ] Step 2: Org-level route protection
+- [x] Step 2: Org-level route protection (commit b11567f)
+  - Added org CRUD endpoints: POST/GET/DELETE /organizations
+  - Added user management: GET/POST/DELETE/PATCH /organizations/{id}/users
+  - Permission enforcement on all endpoints
+  - Added Pydantic request/response models
+  - Added 20 API tests - 38 total passing
 - [ ] Step 3: Frontend - org permissions
 - [ ] Step 4: Schema - Calculators
 - [ ] Step 5: Calculator-level route protection
