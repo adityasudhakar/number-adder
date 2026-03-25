@@ -145,6 +145,62 @@ class OrgUserResponse(BaseModel):
     joined_at: datetime
 
 
+# Calculator models
+class CreateCalculatorRequest(BaseModel):
+    name: str
+
+
+class CalculatorResponse(BaseModel):
+    id: int
+    name: str
+    organization_id: int
+    created_at: datetime
+    created_by_email: str | None = None
+    role: str | None = None
+    is_admin: bool = False
+    can_operate: bool = False
+    has_access: bool = False
+
+
+class AddUserToCalculatorRequest(BaseModel):
+    email: EmailStr
+    role: str  # 'admin', 'operator', or 'viewer'
+
+
+class UpdateCalculatorUserRoleRequest(BaseModel):
+    role: str  # 'admin', 'operator', or 'viewer'
+
+
+class CalculatorUserResponse(BaseModel):
+    id: int
+    email: str
+    role: str
+    granted_at: datetime
+
+
+class CalculatorAddRequest(BaseModel):
+    a: float
+    b: float
+
+
+class CalculatorAddResponse(BaseModel):
+    a: float
+    b: float
+    result: float
+    calculator_id: int
+    calculator_name: str
+
+
+class CalculationHistoryItem(BaseModel):
+    id: int
+    operation: str
+    num_a: float
+    num_b: float
+    result: float
+    created_at: datetime
+    performed_by: str
+
+
 # Analytics helper
 def track_event(user_id: int, event: str, properties: dict = None):
     """Track an event in PostHog if configured."""
@@ -665,6 +721,333 @@ def update_user_role_in_organization(
     })
 
     return {"message": f"User role updated to {request.role}"}
+
+
+# =============================================================================
+# Calculator endpoints (sub-resources within organizations)
+# =============================================================================
+
+@app.post("/organizations/{org_id}/calculators", response_model=CalculatorResponse)
+def create_calculator(
+    org_id: int,
+    request: CreateCalculatorRequest,
+    user_id: Annotated[int, Depends(get_current_user_id_flexible)]
+):
+    """Create a new calculator within an organization. Admin or manager only."""
+    if not db.can_create_calculators(org_id, user_id):
+        raise HTTPException(status_code=403, detail="Only org admins and managers can create calculators")
+
+    try:
+        calc_id = db.create_calculator(org_id, request.name, user_id)
+    except Exception as e:
+        if "unique" in str(e).lower():
+            raise HTTPException(status_code=400, detail="A calculator with this name already exists")
+        raise
+
+    calc = db.get_calculator(calc_id)
+
+    track_event(user_id, "calculator_created", {
+        "org_id": org_id,
+        "calculator_id": calc_id,
+        "calculator_name": request.name
+    })
+
+    return CalculatorResponse(
+        id=calc["id"],
+        name=calc["name"],
+        organization_id=calc["organization_id"],
+        created_at=calc["created_at"],
+        created_by_email=calc["created_by_email"],
+        role="admin",
+        is_admin=True,
+        can_operate=True,
+        has_access=True
+    )
+
+
+@app.get("/organizations/{org_id}/calculators")
+def list_organization_calculators(
+    org_id: int,
+    user_id: Annotated[int, Depends(get_current_user_id_flexible)]
+):
+    """List all calculators in an organization. Must be org member."""
+    if not db.is_org_member(org_id, user_id):
+        raise HTTPException(status_code=403, detail="Not a member of this organization")
+
+    calcs = db.get_organization_calculators(org_id, user_id)
+    return {
+        "calculators": [
+            CalculatorResponse(
+                id=c["id"],
+                name=c["name"],
+                organization_id=org_id,
+                created_at=c["created_at"],
+                created_by_email=c["created_by_email"],
+                role=c["role"],
+                is_admin=c["is_admin"],
+                can_operate=c["can_operate"],
+                has_access=c["has_access"]
+            )
+            for c in calcs
+        ]
+    }
+
+
+@app.get("/calculators")
+def list_my_calculators(user_id: Annotated[int, Depends(get_current_user_id_flexible)]):
+    """List all calculators the user has access to across all orgs."""
+    calcs = db.get_user_calculators(user_id)
+    return {
+        "calculators": [
+            {
+                "id": c["id"],
+                "name": c["name"],
+                "organization_id": c["organization_id"],
+                "organization_name": c["organization_name"],
+                "created_at": c["created_at"],
+                "role": c["role"],
+                "is_admin": c["is_admin"],
+                "can_operate": c["can_operate"]
+            }
+            for c in calcs
+        ]
+    }
+
+
+@app.get("/calculators/{calc_id}", response_model=CalculatorResponse)
+def get_calculator(
+    calc_id: int,
+    user_id: Annotated[int, Depends(get_current_user_id_flexible)]
+):
+    """Get calculator details. Must have access."""
+    if not db.can_view_calculator(calc_id, user_id):
+        raise HTTPException(status_code=403, detail="No access to this calculator")
+
+    calc = db.get_calculator(calc_id)
+    if not calc:
+        raise HTTPException(status_code=404, detail="Calculator not found")
+
+    role = db.get_user_calculator_role(calc_id, user_id)
+
+    return CalculatorResponse(
+        id=calc["id"],
+        name=calc["name"],
+        organization_id=calc["organization_id"],
+        created_at=calc["created_at"],
+        created_by_email=calc["created_by_email"],
+        role=role,
+        is_admin=role == "admin",
+        can_operate=role in ("admin", "operator"),
+        has_access=True
+    )
+
+
+@app.delete("/calculators/{calc_id}")
+def delete_calculator(
+    calc_id: int,
+    user_id: Annotated[int, Depends(get_current_user_id_flexible)]
+):
+    """Delete a calculator. Calculator admin only."""
+    if not db.is_calculator_admin(calc_id, user_id):
+        raise HTTPException(status_code=403, detail="Only calculator admins can delete")
+
+    calc = db.get_calculator(calc_id)
+    if not calc:
+        raise HTTPException(status_code=404, detail="Calculator not found")
+
+    success = db.delete_calculator(calc_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Calculator not found")
+
+    track_event(user_id, "calculator_deleted", {"calculator_id": calc_id})
+
+    return {"message": "Calculator deleted successfully"}
+
+
+# Calculator user management
+
+@app.get("/calculators/{calc_id}/users")
+def list_calculator_users(
+    calc_id: int,
+    user_id: Annotated[int, Depends(get_current_user_id_flexible)]
+):
+    """List users with access to a calculator. Calculator admin only."""
+    if not db.is_calculator_admin(calc_id, user_id):
+        raise HTTPException(status_code=403, detail="Only calculator admins can view users")
+
+    users = db.get_calculator_users(calc_id)
+    return {
+        "users": [
+            CalculatorUserResponse(
+                id=u["id"],
+                email=u["email"],
+                role=u["role"],
+                granted_at=u["granted_at"]
+            )
+            for u in users
+        ]
+    }
+
+
+@app.post("/calculators/{calc_id}/users")
+def add_user_to_calculator(
+    calc_id: int,
+    request: AddUserToCalculatorRequest,
+    user_id: Annotated[int, Depends(get_current_user_id_flexible)]
+):
+    """Add a user to a calculator. Calculator admin only."""
+    if not db.is_calculator_admin(calc_id, user_id):
+        raise HTTPException(status_code=403, detail="Only calculator admins can add users")
+
+    if request.role not in ("admin", "operator", "viewer"):
+        raise HTTPException(status_code=400, detail="Invalid role. Must be admin, operator, or viewer")
+
+    # Find user
+    target_user = db.get_user_by_email(request.email)
+    if not target_user:
+        raise HTTPException(status_code=404, detail="User not found. They must register first.")
+
+    # Check user is in the same org as the calculator
+    calc = db.get_calculator(calc_id)
+    if not db.is_org_member(calc["organization_id"], target_user["id"]):
+        raise HTTPException(
+            status_code=400,
+            detail="User must be a member of the organization first"
+        )
+
+    success = db.add_user_to_calculator(calc_id, target_user["id"], request.role)
+    if not success:
+        raise HTTPException(status_code=400, detail="User already has access to this calculator")
+
+    track_event(user_id, "user_added_to_calculator", {
+        "calculator_id": calc_id,
+        "added_user_email": request.email,
+        "role": request.role
+    })
+
+    return {"message": f"User {request.email} added to calculator as {request.role}"}
+
+
+@app.delete("/calculators/{calc_id}/users/{target_user_id}")
+def remove_user_from_calculator(
+    calc_id: int,
+    target_user_id: int,
+    user_id: Annotated[int, Depends(get_current_user_id_flexible)]
+):
+    """Remove a user from a calculator. Calculator admin only."""
+    if not db.is_calculator_admin(calc_id, user_id):
+        raise HTTPException(status_code=403, detail="Only calculator admins can remove users")
+
+    if target_user_id == user_id:
+        raise HTTPException(status_code=400, detail="Cannot remove yourself. Delete the calculator instead.")
+
+    success = db.remove_user_from_calculator(calc_id, target_user_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="User not found on this calculator")
+
+    track_event(user_id, "user_removed_from_calculator", {
+        "calculator_id": calc_id,
+        "removed_user_id": target_user_id
+    })
+
+    return {"message": "User removed from calculator"}
+
+
+@app.patch("/calculators/{calc_id}/users/{target_user_id}")
+def update_calculator_user_role(
+    calc_id: int,
+    target_user_id: int,
+    request: UpdateCalculatorUserRoleRequest,
+    user_id: Annotated[int, Depends(get_current_user_id_flexible)]
+):
+    """Update a user's role on a calculator. Calculator admin only."""
+    if not db.is_calculator_admin(calc_id, user_id):
+        raise HTTPException(status_code=403, detail="Only calculator admins can change roles")
+
+    if request.role not in ("admin", "operator", "viewer"):
+        raise HTTPException(status_code=400, detail="Invalid role. Must be admin, operator, or viewer")
+
+    if target_user_id == user_id:
+        raise HTTPException(status_code=400, detail="Cannot change your own role")
+
+    success = db.update_user_calculator_role(calc_id, target_user_id, request.role)
+    if not success:
+        raise HTTPException(status_code=404, detail="User not found on this calculator")
+
+    track_event(user_id, "calculator_user_role_changed", {
+        "calculator_id": calc_id,
+        "target_user_id": target_user_id,
+        "new_role": request.role
+    })
+
+    return {"message": f"User role updated to {request.role}"}
+
+
+# Calculator operations (add numbers)
+
+@app.post("/calculators/{calc_id}/add", response_model=CalculatorAddResponse)
+def calculator_add(
+    calc_id: int,
+    request: CalculatorAddRequest,
+    user_id: Annotated[int, Depends(get_current_user_id_flexible)]
+):
+    """Add two numbers using a calculator. Operator or admin only."""
+    if not db.can_operate_calculator(calc_id, user_id):
+        raise HTTPException(
+            status_code=403,
+            detail="No permission to use this calculator. You need operator or admin role."
+        )
+
+    calc = db.get_calculator(calc_id)
+    if not calc:
+        raise HTTPException(status_code=404, detail="Calculator not found")
+
+    from number_adder import add
+    result = add(request.a, request.b)
+
+    # Save to calculator history
+    db.save_calculator_calculation(calc_id, user_id, request.a, request.b, result, "add")
+
+    track_event(user_id, "calculator_add", {
+        "calculator_id": calc_id,
+        "a": request.a,
+        "b": request.b,
+        "result": result
+    })
+
+    return CalculatorAddResponse(
+        a=request.a,
+        b=request.b,
+        result=result,
+        calculator_id=calc_id,
+        calculator_name=calc["name"]
+    )
+
+
+@app.get("/calculators/{calc_id}/history")
+def get_calculator_history(
+    calc_id: int,
+    user_id: Annotated[int, Depends(get_current_user_id_flexible)]
+):
+    """Get calculation history for a calculator. Any role can view."""
+    if not db.can_view_calculator(calc_id, user_id):
+        raise HTTPException(status_code=403, detail="No access to this calculator")
+
+    calculations = db.get_calculator_calculations(calc_id)
+    return {
+        "calculations": [
+            CalculationHistoryItem(
+                id=c["id"],
+                operation=c["operation"],
+                num_a=c["num_a"],
+                num_b=c["num_b"],
+                result=c["result"],
+                created_at=c["created_at"],
+                performed_by=c["performed_by"]
+            )
+            for c in calculations
+        ]
+    }
 
 
 # Health check
