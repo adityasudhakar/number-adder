@@ -396,9 +396,19 @@ This design is based on [vanna-ai/vanna-hosted](https://github.com/vanna-ai/vann
   - Permission enforcement on all endpoints
   - Added Pydantic request/response models
   - Added 20 API tests - 38 total passing
-- [ ] Step 3: Frontend - org permissions
-- [ ] Step 4: Schema - Calculators
-- [ ] Step 5: Calculator-level route protection
+- [ ] Step 3: Frontend - org permissions (skipped for now - backend first)
+- [x] Step 4: Schema - Calculators (commit 48ff805)
+  - Added `calculators` and `calculator_users` tables
+  - Added `calculator_id` column to calculations table
+  - Added CRUD and permission check functions
+  - Added 23 tests - 61 total passing
+- [x] Step 5: Calculator-level route protection (commit 03d34d4)
+  - Added calculator CRUD endpoints
+  - Added calculator user management endpoints
+  - Added POST /calculators/{id}/add - the actual calculation
+  - Added GET /calculators/{id}/history - view calculation history
+  - Permission enforcement: viewer < operator < admin
+  - Added 18 API tests - 79 total passing
 - [ ] Step 6: Frontend - calculator permissions
 
 ---
