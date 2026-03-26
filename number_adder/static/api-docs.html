@@ -42,7 +42,8 @@
         <h1>Number Adder API</h1>
         <div>
             <a href="/">Home</a>
-            <a href="/dashboard.html">Dashboard</a>
+            <a href="/dashboard.html">App Home</a>
+            <a href="/admin.html#api-keys">Admin</a>
         </div>
     </div>
 
@@ -51,13 +52,14 @@
         <!-- Overview -->
         <div class="card">
             <h2>API Documentation</h2>
-            <p>The Number Adder API lets you perform calculations, view history, and manage your account programmatically.</p>
+            <p>The Number Adder API lets you perform organization and calculator-scoped operations, view calculator history, and manage your account programmatically.</p>
             <p><strong>Base URL:</strong> <code>https://number-adder.com</code></p>
 
             <h3 style="margin-top: 20px;">Contents</h3>
             <ul class="toc">
                 <li><a href="#getting-started">Getting Started</a></li>
                 <li><a href="#authentication">Authentication</a></li>
+                <li><a href="#primary-model">Primary Model</a></li>
                 <li><a href="#endpoints">Endpoints</a></li>
                 <li><a href="#errors">Errors</a></li>
             </ul>
@@ -68,11 +70,18 @@
             <h2>Getting Started</h2>
             <ol>
                 <li><a href="/">Create an account</a> on Number Adder</li>
-                <li>Go to <a href="/settings.html">Settings</a></li>
+                <li>Go to <a href="/admin.html#api-keys">Admin</a></li>
                 <li>Click <strong>Generate API Key</strong></li>
                 <li>Copy and save your key &mdash; it is only shown once</li>
             </ol>
             <p>Your key will look like: <code>na_a1b2c3d4e5f6...</code></p>
+        </div>
+
+        <div class="card" id="primary-model">
+            <h2>Primary Model</h2>
+            <p>The primary API model is calculator-scoped. Authenticate as a user, list the calculators you can access, then operate on a specific calculator.</p>
+            <div class="code-block">curl https://number-adder.com/calculators \
+  -H "X-API-Key: na_your_key_here"</div>
         </div>
 
         <!-- Authentication -->
@@ -90,10 +99,48 @@
         <div class="card" id="endpoints">
             <h2>Endpoints</h2>
 
+            <!-- GET /calculators -->
+            <div class="endpoint">
+                <h3><span class="method get">GET</span> /calculators</h3>
+                <p>List all calculators the authenticated user can access across their organizations.</p>
+
+                <p class="label">Example</p>
+                <div class="code-block">curl https://number-adder.com/calculators \
+  -H "X-API-Key: na_your_key_here"</div>
+            </div>
+
+            <!-- POST /calculators/{calc_id}/add -->
+            <div class="endpoint">
+                <h3><span class="method post">POST</span> /calculators/{calc_id}/add</h3>
+                <p>Add two numbers using a specific calculator. The calculator determines the organization scope.</p>
+
+                <p class="label">Request body</p>
+                <div class="code-block">{
+  "a": 5,
+  "b": 3
+}</div>
+
+                <p class="label">Example</p>
+                <div class="code-block">curl -X POST https://number-adder.com/calculators/123/add \
+  -H "X-API-Key: na_your_key_here" \
+  -H "Content-Type: application/json" \
+  -d '{"a": 5, "b": 3}'</div>
+            </div>
+
+            <!-- GET /calculators/{calc_id}/history -->
+            <div class="endpoint">
+                <h3><span class="method get">GET</span> /calculators/{calc_id}/history</h3>
+                <p>Get calculation history for one calculator.</p>
+
+                <p class="label">Example</p>
+                <div class="code-block">curl https://number-adder.com/calculators/123/history \
+  -H "X-API-Key: na_your_key_here"</div>
+            </div>
+
             <!-- POST /add -->
             <div class="endpoint">
                 <h3><span class="method post">POST</span> /add</h3>
-                <p>Add two numbers together.</p>
+                <p>Legacy endpoint for older integrations. New multi-tenant clients should prefer <code>/calculators/{calc_id}/add</code>.</p>
 
                 <p class="label">Request body</p>
                 <div class="code-block">{
@@ -148,7 +195,7 @@
             <!-- GET /history -->
             <div class="endpoint">
                 <h3><span class="method get">GET</span> /history</h3>
-                <p>Get your calculation history, ordered by most recent first.</p>
+                <p>Legacy endpoint for older integrations. New multi-tenant clients should prefer <code>/calculators/{calc_id}/history</code>.</p>
 
                 <p class="label">Response <code>200</code></p>
                 <div class="code-block">{

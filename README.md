@@ -4,11 +4,11 @@
   <img src="number_adder/static/assets/logo.svg" alt="Number Adder logo" width="160" />
 </p>
 
-A simple number adding service with:
+A multi-tenant calculator service with:
 
-- **Hosted API** (Railway) + OpenAPI docs
-- **Python package** (`number-adder`) for local usage
-- **Agent-first CLI** (`na`) for calling any API path
+- **Hosted API** for organization and calculator-scoped usage
+- **Self-hosted server** via PyPI
+- **Thin agent-first CLI** (`na`) for calling the hosted API
 
 ## Quick links (hosted)
 
@@ -20,7 +20,7 @@ A simple number adding service with:
 
 See: `docs/agent-quickstart.md`
 
-## Python package (local)
+## Self-hosting via PyPI
 
 ### Installation
 
@@ -28,9 +28,12 @@ See: `docs/agent-quickstart.md`
 pip install number-adder
 ```
 
-### Usage
+### Run the server
 
 ```bash
-number-adder 5 7
-# Output: 12.0
+number-adder-server
 ```
+
+## Thin API CLI
+
+The package also includes `na`, a thin wrapper around the hosted API for agent and shell usage.

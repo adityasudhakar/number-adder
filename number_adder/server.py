@@ -1,4 +1,4 @@
-"""FastAPI server for number-adder with GDPR compliance."""
+"""FastAPI server for number-adder with multi-tenant calculator support."""
 
 import os
 import hashlib
@@ -53,7 +53,7 @@ api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 # FastAPI app
 app = FastAPI(
     title="Number Adder API",
-    description="A simple number adding service with GDPR compliance",
+    description="A multi-tenant calculator service with hosted and self-hosted support",
     version="0.3.0"
 )
 
@@ -321,7 +321,7 @@ def add_numbers(
     request: AddRequest,
     user_id: Annotated[int, Depends(get_current_user_id_flexible)]
 ):
-    """Add two numbers (requires authentication)."""
+    """Add two numbers (legacy endpoint; requires authentication)."""
     result = add(request.a, request.b)
 
     # Save to history
@@ -360,7 +360,7 @@ def multiply_numbers(
 
 @app.get("/history")
 def get_history(user_id: Annotated[int, Depends(get_current_user_id_flexible)]):
-    """Get calculation history for current user."""
+    """Get calculation history for current user (legacy endpoint)."""
     calculations = db.get_user_calculations(user_id)
     return {"calculations": calculations}
 
