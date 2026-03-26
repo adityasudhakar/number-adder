@@ -65,22 +65,23 @@
             <img class="logo" src="assets/logo.svg" alt="Number Adder logo" />
             <h1>Number Adder</h1>
         </div>
-        <p class="subtitle">Add numbers. Upgrade to multiply.</p>
+        <p class="subtitle">Multi-tenant calculators with organization-based access control.</p>
 
         <!-- Options view -->
         <div id="options-view" class="options">
             <div class="option-card" onclick="showAuth()">
                 <span class="badge cloud-badge">Hosted</span>
                 <h2>Cloud</h2>
-                <p>Use instantly with no setup. We handle hosting, updates, and backups.</p>
+                <p>Use instantly with no setup. Create organizations, invite members, and keep calculator access scoped by role.</p>
                 <button class="cloud-btn">Get Started</button>
             </div>
 
             <div class="option-card" onclick="window.open('https://pypi.org/project/number-adder/', '_blank')">
                 <span class="badge self-badge">Open Source</span>
                 <h2>Self-Hosted</h2>
-                <p>Run on your own server. Full control over your data and infrastructure.</p>
-                <div class="code-block">pip install number-adder</div>
+                <p>Run the multi-tenant server on your own infrastructure and connect any client you want.</p>
+                <div class="code-block">pip install number-adder
+number-adder-server</div>
             </div>
         </div>
 

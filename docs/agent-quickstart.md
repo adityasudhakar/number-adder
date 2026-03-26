@@ -39,12 +39,27 @@ Provide the API key via env var:
 export NA_API_KEY="na_..."
 ```
 
-### Call any endpoint
+### Call calculator-scoped endpoints
+
+The primary product API is calculator-scoped. In practice that means:
+
+- authenticate as a user via API key
+- choose a calculator the user already has access to
+- call endpoints under `/calculators/{calc_id}/...`
+
+```bash
+na call GET /calculators --pretty
+na call POST /calculators/123/add --data '{"a":2,"b":3}' --pretty
+na call GET /calculators/123/history --pretty
+```
+
+### Legacy endpoints
+
+Older endpoints like `/add` and `/history` still exist for backward compatibility, but they are no longer the primary model for multi-tenant usage.
 
 ```bash
 na call GET /version --pretty
 na call POST /add --data '{"a":2,"b":3}' --pretty
-na call GET /history --pretty
 ```
 
 ### Safety

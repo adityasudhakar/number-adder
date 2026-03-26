@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "number-adder"
 version = "0.3.0"
-description = "A simple number adding service with GDPR compliance"
+description = "A multi-tenant calculator service with a hosted API, thin CLI, and self-hosted server"
 readme = "README.md"
 requires-python = ">=3.8"
 license = "MIT"
@@ -24,7 +24,6 @@ dependencies = [
 ]
 
 [project.scripts]
-number-adder = "number_adder.cli:main"
 number-adder-server = "number_adder.server:main"
 na = "number_adder.na_cli:main"
 
