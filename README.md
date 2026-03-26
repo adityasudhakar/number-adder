@@ -4,11 +4,13 @@
   <img src="number_adder/static/assets/logo.svg" alt="Number Adder logo" width="160" />
 </p>
 
-A multi-tenant calculator service with:
+A multi-tenant calculator service with organization-based access control:
 
 - **Hosted API** for organization and calculator-scoped usage
 - **Self-hosted server** via PyPI
 - **Thin agent-first CLI** (`na`) for calling the hosted API
+
+Users can belong to multiple organizations, each organization can have multiple calculators, and access is enforced by org and calculator roles.
 
 ## Quick links (hosted)
 
