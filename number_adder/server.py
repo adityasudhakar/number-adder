@@ -828,6 +828,8 @@ def get_calculator(
         raise HTTPException(status_code=404, detail="Calculator not found")
 
     role = db.get_user_calculator_role(calc_id, user_id)
+    is_org_admin = db.is_org_admin(calc["organization_id"], user_id)
+    effective_role = "admin (org)" if is_org_admin else role
 
     return CalculatorResponse(
         id=calc["id"],
@@ -835,9 +837,9 @@ def get_calculator(
         organization_id=calc["organization_id"],
         created_at=calc["created_at"],
         created_by_email=calc["created_by_email"],
-        role=role,
-        is_admin=role == "admin",
-        can_operate=role in ("admin", "operator"),
+        role=effective_role,
+        is_admin=db.is_calculator_admin(calc_id, user_id),
+        can_operate=db.can_operate_calculator(calc_id, user_id),
         has_access=True
     )
 

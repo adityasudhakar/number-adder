@@ -485,17 +485,35 @@ def get_organization_calculators(org_id: int, user_id: int) -> list[dict]:
         cursor = conn.cursor()
         cursor.execute("""
             SELECT c.id, c.name, c.created_at,
-                   cu.role,
+                   CASE
+                       WHEN ou.role = 'admin' THEN 'admin (org)'
+                       ELSE cu.role
+                   END as role,
                    u.email as created_by_email,
-                   CASE WHEN cu.role = 'admin' THEN true ELSE false END as is_admin,
-                   CASE WHEN cu.role IN ('admin', 'operator') THEN true ELSE false END as can_operate,
-                   CASE WHEN cu.role IS NOT NULL THEN true ELSE false END as has_access
+                   CASE
+                       WHEN ou.role = 'admin' THEN true
+                       WHEN cu.role = 'admin' THEN true
+                       ELSE false
+                   END as is_admin,
+                   CASE
+                       WHEN ou.role = 'admin' THEN true
+                       WHEN cu.role IN ('admin', 'operator') THEN true
+                       ELSE false
+                   END as can_operate,
+                   CASE
+                       WHEN ou.role = 'admin' THEN true
+                       WHEN cu.role IS NOT NULL THEN true
+                       ELSE false
+                   END as has_access
             FROM calculators c
             JOIN users u ON c.created_by_user_id = u.id
+            LEFT JOIN organization_users ou
+                ON c.organization_id = ou.organization_id
+               AND ou.user_id = %s
             LEFT JOIN calculator_users cu ON c.id = cu.calculator_id AND cu.user_id = %s
             WHERE c.organization_id = %s
             ORDER BY c.name
-        """, (user_id, org_id))
+        """, (user_id, user_id, org_id))
         return [dict(row) for row in cursor.fetchall()]
 
 
@@ -504,17 +522,29 @@ def get_user_calculators(user_id: int) -> list[dict]:
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute("""
-            SELECT c.id, c.name, c.organization_id, c.created_at,
+            SELECT DISTINCT c.id, c.name, c.organization_id, c.created_at,
                    o.name as organization_name,
-                   cu.role,
-                   CASE WHEN cu.role = 'admin' THEN true ELSE false END as is_admin,
-                   CASE WHEN cu.role IN ('admin', 'operator') THEN true ELSE false END as can_operate
+                   CASE
+                       WHEN ou.role = 'admin' THEN 'admin (org)'
+                       ELSE cu.role
+                   END as role,
+                   CASE
+                       WHEN ou.role = 'admin' THEN true
+                       WHEN cu.role = 'admin' THEN true
+                       ELSE false
+                   END as is_admin,
+                   CASE
+                       WHEN ou.role = 'admin' THEN true
+                       WHEN cu.role IN ('admin', 'operator') THEN true
+                       ELSE false
+                   END as can_operate
             FROM calculators c
-            JOIN calculator_users cu ON c.id = cu.calculator_id
             JOIN organizations o ON c.organization_id = o.id
-            WHERE cu.user_id = %s
+            LEFT JOIN organization_users ou ON c.organization_id = ou.organization_id AND ou.user_id = %s
+            LEFT JOIN calculator_users cu ON c.id = cu.calculator_id AND cu.user_id = %s
+            WHERE ou.role = 'admin' OR cu.user_id = %s
             ORDER BY o.name, c.name
-        """, (user_id,))
+        """, (user_id, user_id, user_id))
         return [dict(row) for row in cursor.fetchall()]
 
 

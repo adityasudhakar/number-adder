@@ -198,6 +198,15 @@ class TestCalculatorPermissions:
         assert db.can_view_calculator(calc_id, second_user) is True
         assert db.can_view_calculator(calc_id, third_user) is False  # no access
 
+    def test_org_admin_has_implicit_calculator_admin_access(self, test_user, second_user, test_org):
+        """Org admins should implicitly admin all calculators in their org."""
+        calc_id = db.create_calculator(test_org, "Implicit Admin Test", test_user)
+        db.add_user_to_organization(test_org, second_user, "admin")
+
+        assert db.is_calculator_admin(calc_id, second_user) is True
+        assert db.can_operate_calculator(calc_id, second_user) is True
+        assert db.can_view_calculator(calc_id, second_user) is True
+
 
 class TestCalculatorListing:
     """Tests for listing calculators."""
@@ -244,6 +253,19 @@ class TestCalculatorListing:
         names = {c["name"] for c in calcs}
         assert "Org A Calc" in names
         assert "Org B Calc" in names
+
+    def test_org_admin_listing_shows_implicit_calculator_access(self, test_user, second_user, test_org):
+        """Org admins should see implicit calculator admin access in list results."""
+        db.add_user_to_organization(test_org, second_user, "admin")
+        db.create_calculator(test_org, "Org Admin Calc", test_user)
+
+        calcs = db.get_organization_calculators(test_org, second_user)
+
+        assert len(calcs) == 1
+        assert calcs[0]["role"] == "admin (org)"
+        assert calcs[0]["is_admin"] is True
+        assert calcs[0]["can_operate"] is True
+        assert calcs[0]["has_access"] is True
 
 
 class TestCalculatorCalculations:

@@ -446,19 +446,21 @@ Fix org admin implicit calculator access - org admins should be able to use/mana
 - Calculator user management (add, remove)
 - Calculator operations (add numbers, view history)
 - Permission enforcement on API endpoints
-- 83 tests passing
+- Org admins now have implicit calculator admin access across their org
+- 89 tests passing
 - Frontend with delete/remove buttons
 
 ### What Is Broken
-- **NEED TO VERIFY**: Just added `_is_org_admin_for_calculator()` in database.py to give org admins implicit calculator access. NOT YET TESTED.
-- Frontend `get_organization_calculators()` SQL query still returns `role: null` for org admins (doesn't reflect implicit access). May need to update the SQL or post-process in Python.
+- No known calculator/org-admin regression in the test suite
+- Browser verification still useful for confirming the exact UI flow in `organizations.html`
 
 ### Files Touched (this session)
-- `number_adder/database.py` - Added org admin implicit calculator access
-- `number_adder/static/organizations.html` - Delete buttons, improved role display
+- `number_adder/database.py` - Fixed org-admin implicit access in calculator listing queries
+- `number_adder/server.py` - Fixed calculator detail response for org admins
+- `tests/test_calculators.py` - Added DB coverage for org-admin implicit calculator access
+- `tests/test_calculator_api.py` - Added API coverage for org-admin use/delete/manage flows
 
 ### Next Steps
-1. Test that org admin can now use calculators (refresh browser, try ns1-marketing)
-2. If it works, the SQL in `get_organization_calculators()` still shows "role: none" - update it to show "admin (org)" or similar for org admins
-3. Run tests: `DATABASE_URL="postgresql://localhost/number_adder_test" python -m pytest`
-4. Commit and update this notes.md
+1. Refresh the browser and verify org admin can use, delete, and manage calculator members from `organizations.html`
+2. If UI looks right, keep building the next multi-tenant behavior on top of this checkpoint
+3. Test command: `DATABASE_URL="postgresql://localhost/number_adder_test" python -m pytest`

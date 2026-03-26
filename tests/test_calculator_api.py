@@ -286,6 +286,30 @@ class TestCalculatorOperations:
 
         assert response.status_code == 403
 
+    def test_org_admin_can_add_without_explicit_calculator_role(self, client, auth_headers, second_auth_headers, test_org):
+        """Org admins should be able to use calculators without explicit calculator membership."""
+        calc_response = client.post(
+            f"/organizations/{test_org}/calculators",
+            json={"name": "Org Admin Calc"},
+            headers=auth_headers
+        )
+        calc_id = calc_response.json()["id"]
+
+        client.post(
+            f"/organizations/{test_org}/users",
+            json={"email": "second@example.com", "role": "admin"},
+            headers=auth_headers
+        )
+
+        response = client.post(
+            f"/calculators/{calc_id}/add",
+            json={"a": 4.0, "b": 6.0},
+            headers=second_auth_headers
+        )
+
+        assert response.status_code == 200
+        assert response.json()["result"] == 10.0
+
 
 class TestCalculatorHistory:
     """Tests for calculator history."""
@@ -440,6 +464,87 @@ class TestCalculatorUserManagement:
         response = client.get(f"/calculators/{calc_id}/users", headers=second_auth_headers)
 
         assert response.status_code == 403
+
+    def test_org_admin_can_add_user_to_calculator_without_explicit_membership(self, client, auth_headers, second_auth_headers, third_auth_headers, test_org):
+        """Org admins should be able to manage calculator users without explicit calculator membership."""
+        calc_response = client.post(
+            f"/organizations/{test_org}/calculators",
+            json={"name": "Org Admin Manage Calc"},
+            headers=auth_headers
+        )
+        calc_id = calc_response.json()["id"]
+
+        client.post(
+            f"/organizations/{test_org}/users",
+            json={"email": "second@example.com", "role": "admin"},
+            headers=auth_headers
+        )
+        client.post(
+            f"/organizations/{test_org}/users",
+            json={"email": "third@example.com", "role": "member"},
+            headers=auth_headers
+        )
+
+        response = client.post(
+            f"/calculators/{calc_id}/users",
+            json={"email": "third@example.com", "role": "viewer"},
+            headers=second_auth_headers
+        )
+
+        assert response.status_code == 200
+
+
+class TestOrgAdminImplicitCalculatorAccess:
+    """Tests for org-admin implicit access to calculators."""
+
+    def test_org_admin_can_delete_calculator_without_explicit_membership(self, client, auth_headers, second_auth_headers, test_org):
+        """Org admins should be able to delete calculators in their org."""
+        calc_response = client.post(
+            f"/organizations/{test_org}/calculators",
+            json={"name": "Delete Me"},
+            headers=auth_headers
+        )
+        calc_id = calc_response.json()["id"]
+
+        client.post(
+            f"/organizations/{test_org}/users",
+            json={"email": "second@example.com", "role": "admin"},
+            headers=auth_headers
+        )
+
+        response = client.delete(
+            f"/calculators/{calc_id}",
+            headers=second_auth_headers
+        )
+
+        assert response.status_code == 200
+
+    def test_org_admin_calculator_listing_shows_admin_access(self, client, auth_headers, second_auth_headers, test_org):
+        """Org admins should see calculator controls enabled in org calculator list."""
+        client.post(
+            f"/organizations/{test_org}/calculators",
+            json={"name": "Marketing"},
+            headers=auth_headers
+        )
+
+        client.post(
+            f"/organizations/{test_org}/users",
+            json={"email": "second@example.com", "role": "admin"},
+            headers=auth_headers
+        )
+
+        response = client.get(
+            f"/organizations/{test_org}/calculators",
+            headers=second_auth_headers
+        )
+
+        assert response.status_code == 200
+        calculators = response.json()["calculators"]
+        assert len(calculators) == 1
+        assert calculators[0]["role"] == "admin (org)"
+        assert calculators[0]["is_admin"] is True
+        assert calculators[0]["can_operate"] is True
+        assert calculators[0]["has_access"] is True
 
 
 class TestCrossCalculatorIsolation:
