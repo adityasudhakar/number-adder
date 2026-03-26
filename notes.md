@@ -464,3 +464,90 @@ Fix org admin implicit calculator access - org admins should be able to use/mana
 1. Refresh the browser and verify org admin can use, delete, and manage calculator members from `organizations.html`
 2. If UI looks right, keep building the next multi-tenant behavior on top of this checkpoint
 3. Test command: `DATABASE_URL="postgresql://localhost/number_adder_test" python -m pytest`
+
+---
+
+## Product / Architecture Decisions (2026-03-25)
+
+### UI Structure
+
+- **Decision:** Replace the old `Dashboard` concept with **Home**.
+- **Why:** The old logged-in page was still using the legacy global calculator flow (`/add`, `/history`) and no longer matched the multi-tenant model.
+- **Outcome:** Home now uses:
+  - organization picker
+  - calculator picker
+  - calculator-scoped usage and history
+
+- **Decision:** Replace top-level `Organizations` and `Settings` with a single **Admin** area.
+- **Why:** The logged-in app needed a cleaner structure once org management, profile, and API keys all became part of the product.
+- **Outcome:** Admin now contains:
+  - Organizations
+  - Profile
+  - API Keys
+
+- **Decision:** Keep `GitHub`, `PyPI`, and `CLI` visible while logged in, but move them to the footer.
+- **Why:** They are part of the product/developer story, but they crowded the header.
+
+### Access Model
+
+- **Decision:** The main hosted product is now explicitly **multi-tenant and access-controlled**.
+- **Why:** That is the actual product behavior after organizations, org roles, calculators, and calculator roles were added.
+- **Outcome:** Public/site messaging should describe:
+  - multiple organizations per user
+  - multiple calculators per organization
+  - access enforced by org and calculator roles
+
+- **Decision:** Org admins get **implicit calculator admin access** across calculators in their org.
+- **Why:** Requiring explicit calculator membership for org admins made the UX inconsistent and blocked common admin actions.
+- **Outcome:** Backend permission checks and calculator list/detail responses were updated to reflect this.
+
+### API Direction
+
+- **Decision:** Treat calculator-scoped endpoints as the **primary API model**.
+- **Why:** In the multi-tenant model, calculator operations belong to a calculator, and calculator identity is enough to infer org context.
+- **Primary endpoints:**
+  - `GET /calculators`
+  - `POST /calculators/{calc_id}/add`
+  - `GET /calculators/{calc_id}/history`
+
+- **Decision:** Keep auth user-scoped.
+- **Why:** The authenticated user already determines which orgs/calculators they can access. We do not need separate org-scoped or calculator-scoped API keys at this stage.
+
+- **Decision:** Ignore backward compatibility for now as an implementation priority.
+- **Why:** The product direction is clear enough to move forward without spending time on legacy migration behavior right now.
+- **Note:** Legacy endpoints `/add` and `/history` still exist in code and docs are now explicit that they are legacy, not the primary model.
+
+### CLI Direction
+
+- **Decision:** Keep the CLI only as a **thin wrapper** over the hosted API.
+- **Why:** An API is sufficient for most coding-agent integrations; the CLI is only justified if it stays small and convenient.
+- **Outcome:** No extra multi-tenancy abstraction was added to the CLI beyond the API model.
+
+### PyPI / Packaging Direction
+
+- **Decision:** Position PyPI as **server-first** for self-hosting.
+- **Why:** The main self-hosted value is running the multi-tenant service on a customer's infrastructure, not a local arithmetic toy CLI.
+
+- **Decision:** Remove the old local CLI entrypoint (`number-adder 5 7`) from the package story.
+- **Why:** It reflected the pre-multi-tenant phase and confused the hosted/self-hosted/API product story.
+- **Outcome:**
+  - `number-adder-server` remains the main packaged entrypoint
+  - `na` remains as the thin hosted API wrapper
+  - old `number_adder/cli.py` was removed
+
+### Public Wording
+
+- **Decision:** Update public-facing copy to say the product is multi-tenant and access-controlled.
+- **Where updated:**
+  - public homepage / logged-out site
+  - README / GitHub-facing repo description text
+  - API docs and developer docs
+- **Why:** The old wording ("Add numbers. Upgrade to multiply.") no longer described the actual product.
+
+### Release State
+
+- **Status:** Changes were committed, merged into `master`, and pushed to GitHub.
+- **Relevant commits:**
+  - `e7c889f` Fix org-admin implicit calculator access
+  - `8aa8db7` Restructure UI and align API packaging story
+  - `9178222` Clarify multi-tenant access control positioning
