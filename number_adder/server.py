@@ -21,6 +21,12 @@ import uvicorn
 
 from number_adder import add, multiply
 from number_adder import database as db
+from number_adder.chat_agent import answer_question
+
+try:
+    from number_adder.vanna_service import create_vanna_app
+except ImportError:
+    create_vanna_app = None
 
 # Configuration
 SECRET_KEY = os.environ.get("SECRET_KEY", "dev-secret-key-change-in-production")
@@ -65,6 +71,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Mount Vanna AI agent at /vanna when its dependencies are configured.
+if create_vanna_app and os.environ.get("OPENAI_API_KEY") and os.environ.get("DATABASE_URL"):
+    app.mount("/vanna", create_vanna_app())
 
 
 # Pydantic models
@@ -112,6 +122,14 @@ class ApiKeyResponse(BaseModel):
 
 class ApiKeyStatusResponse(BaseModel):
     has_api_key: bool
+
+
+class ChatRequest(BaseModel):
+    message: str
+
+
+class ChatResponse(BaseModel):
+    answer: str
 
 
 # Analytics helper
@@ -276,6 +294,17 @@ def get_history(user_id: Annotated[int, Depends(get_current_user_id_flexible)]):
     """Get calculation history for current user."""
     calculations = db.get_user_calculations(user_id)
     return {"calculations": calculations}
+
+
+@app.post("/chat", response_model=ChatResponse)
+def chat_with_history(
+    request: ChatRequest,
+    user_id: Annotated[int, Depends(get_current_user_id_flexible)],
+):
+    """Answer questions about the authenticated user's calculation history."""
+    result = answer_question(user_id, request.message)
+    track_event(user_id, "chat_question_answered", {"source": result["source"]})
+    return ChatResponse(answer=result["answer"])
 
 
 # Stripe endpoints

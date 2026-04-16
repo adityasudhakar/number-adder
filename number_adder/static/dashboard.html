@@ -38,6 +38,29 @@
         .history-item .time { color: #666; font-size: 12px; }
         .empty { color: #666; text-align: center; padding: 20px; }
         .error { color: #dc3545; margin-bottom: 15px; padding: 10px; background: #f8d7da; border-radius: 4px; }
+
+        /* Chat widget */
+        .chat-toggle { position: fixed; bottom: 24px; right: 24px; width: 56px; height: 56px; border-radius: 50%; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; font-size: 24px; cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,0.25); z-index: 1000; display: flex; align-items: center; justify-content: center; }
+        .chat-toggle:hover { transform: scale(1.05); }
+        .chat-panel { position: fixed; bottom: 92px; right: 24px; width: 400px; max-height: 520px; background: white; border-radius: 12px; box-shadow: 0 8px 30px rgba(0,0,0,0.2); z-index: 1000; display: none; flex-direction: column; overflow: hidden; }
+        .chat-panel.open { display: flex; }
+        .chat-header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 14px 18px; font-weight: 600; display: flex; justify-content: space-between; align-items: center; }
+        .chat-header span { font-size: 14px; }
+        .chat-header button { background: none; border: none; color: white; font-size: 18px; cursor: pointer; padding: 0; line-height: 1; }
+        .chat-messages { flex: 1; overflow-y: auto; padding: 14px; min-height: 300px; max-height: 380px; display: flex; flex-direction: column; gap: 10px; }
+        .chat-msg { padding: 10px 14px; border-radius: 8px; font-size: 14px; line-height: 1.5; max-width: 88%; word-wrap: break-word; }
+        .chat-msg.user { background: #667eea; color: white; align-self: flex-end; }
+        .chat-msg.assistant { background: #f0f0f0; color: #333; align-self: flex-start; }
+        .chat-msg.status { background: #fff3cd; color: #856404; align-self: flex-start; font-size: 12px; padding: 6px 10px; }
+        .chat-msg table { width: 100%; border-collapse: collapse; margin-top: 6px; font-size: 12px; }
+        .chat-msg table th, .chat-msg table td { border: 1px solid #ddd; padding: 4px 8px; text-align: left; }
+        .chat-msg table th { background: #e9ecef; }
+        .chat-input-row { display: flex; border-top: 1px solid #eee; padding: 10px; gap: 8px; }
+        .chat-input-row input { flex: 1; padding: 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; outline: none; }
+        .chat-input-row input:focus { border-color: #667eea; }
+        .chat-input-row button { padding: 10px 16px; background: #667eea; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; }
+        .chat-input-row button:disabled { background: #ccc; }
+        @media (max-width: 480px) { .chat-panel { width: calc(100vw - 32px); right: 16px; bottom: 84px; } }
     </style>
     <!-- PostHog -->
     <script>
@@ -94,6 +117,22 @@
             </div>
         </div>
     </div>
+
+    <!-- Chat widget -->
+    <div class="chat-panel" id="chat-panel">
+        <div class="chat-header">
+            <span>Ask about your data</span>
+            <button onclick="toggleChat()">&times;</button>
+        </div>
+        <div class="chat-messages" id="chat-messages">
+            <div class="chat-msg assistant">Ask me anything about your calculation history. For example: "What's my most common operation?" or "Show me my totals."</div>
+        </div>
+        <div class="chat-input-row">
+            <input type="text" id="chat-input" placeholder="Ask a question..." onkeydown="if(event.key==='Enter')sendChat()">
+            <button onclick="sendChat()" id="chat-send-btn">Send</button>
+        </div>
+    </div>
+    <button class="chat-toggle" id="chat-toggle" onclick="toggleChat()" title="Ask AI about your data">&#x2728;</button>
 
     <script>
         const API = '';
@@ -263,6 +302,61 @@
         function logout() {
             localStorage.removeItem('token');
             window.location.href = '/';
+        }
+
+        // --- Chat widget ---
+        let chatBusy = false;
+
+        function toggleChat() {
+            document.getElementById('chat-panel').classList.toggle('open');
+            if (document.getElementById('chat-panel').classList.contains('open')) {
+                document.getElementById('chat-input').focus();
+            }
+        }
+
+        function appendChatMsg(text, role) {
+            const el = document.createElement('div');
+            el.className = `chat-msg ${role}`;
+            el.innerHTML = text;
+            const msgs = document.getElementById('chat-messages');
+            msgs.appendChild(el);
+            msgs.scrollTop = msgs.scrollHeight;
+            return el;
+        }
+
+        async function sendChat() {
+            if (chatBusy) return;
+            const input = document.getElementById('chat-input');
+            const msg = input.value.trim();
+            if (!msg) return;
+
+            input.value = '';
+            appendChatMsg(msg, 'user');
+
+            chatBusy = true;
+            document.getElementById('chat-send-btn').disabled = true;
+
+            const assistantEl = appendChatMsg('', 'assistant');
+
+            try {
+                const res = await fetchWithAuth(`${API}/chat`, {
+                    method: 'POST',
+                    body: JSON.stringify({ message: msg })
+                });
+                const data = await res.json();
+                if (!res.ok) {
+                    throw new Error(data.detail || 'Chat request failed');
+                }
+                assistantEl.textContent = data.answer || '(No response)';
+
+            } catch (err) {
+                assistantEl.textContent = 'Error: ' + err.message;
+                assistantEl.classList.add('status');
+            }
+
+            chatBusy = false;
+            document.getElementById('chat-send-btn').disabled = false;
+            document.getElementById('chat-messages').scrollTop = document.getElementById('chat-messages').scrollHeight;
         }
 
         // Initialize

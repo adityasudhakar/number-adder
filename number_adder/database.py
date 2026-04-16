@@ -146,6 +146,31 @@ def get_user_calculations(user_id: int) -> list[dict]:
         return [dict(row) for row in cursor.fetchall()]
 
 
+def get_recent_calculations(
+    user_id: int,
+    limit: int = 10,
+    operation: str | None = None,
+) -> list[dict]:
+    """Get recent calculations for a user, optionally filtered by operation."""
+    query = (
+        "SELECT id, operation, num_a, num_b, result, created_at "
+        "FROM calculations WHERE user_id = %s"
+    )
+    params: list[object] = [user_id]
+
+    if operation:
+        query += " AND operation = %s"
+        params.append(operation)
+
+    query += " ORDER BY created_at DESC LIMIT %s"
+    params.append(limit)
+
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute(query, tuple(params))
+        return [dict(row) for row in cursor.fetchall()]
+
+
 # GDPR operations
 def export_user_data(user_id: int) -> dict:
     """Export all user data for GDPR compliance."""
