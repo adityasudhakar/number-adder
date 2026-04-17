@@ -4,6 +4,21 @@ from number_adder import chat_agent
 from number_adder.server import app, get_current_user_id_flexible
 
 
+def test_system_prompt_loads_skill_file(monkeypatch, tmp_path):
+    skill_file = tmp_path / "SKILL.md"
+    skill_file.write_text(
+        "---\nname: calculation-history\ndescription: test\n---\n# Loaded Skill\nUse stats first.\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(chat_agent, "SKILL_PATH", skill_file)
+
+    prompt = chat_agent._get_system_prompt()
+
+    assert "Loaded Skill" in prompt
+    assert "Use stats first." in prompt
+    assert "name: calculation-history" not in prompt
+
+
 def test_rule_based_average_answer(monkeypatch):
     monkeypatch.setattr(chat_agent, "OPENAI_API_KEY", "")
     monkeypatch.setattr(

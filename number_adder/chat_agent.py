@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import re
+from pathlib import Path
 from statistics import mean
 from typing import Any
 
@@ -15,8 +16,15 @@ from number_adder import database as db
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
 CHAT_AGENT_MODEL = os.environ.get("CHAT_AGENT_MODEL", "gpt-4.1-mini")
 OPENAI_CHAT_COMPLETIONS_URL = "https://api.openai.com/v1/chat/completions"
+SKILL_PATH = (
+    Path(__file__).resolve().parent.parent
+    / ".agents"
+    / "skills"
+    / "calculation-history"
+    / "SKILL.md"
+)
 
-SYSTEM_PROMPT = """
+DEFAULT_SYSTEM_PROMPT = """
 You answer questions about a user's Number Adder calculation history.
 
 Rules:
@@ -100,7 +108,7 @@ def answer_question(user_id: int, message: str) -> dict[str, Any]:
 
 def _answer_with_openai(user_id: int, message: str) -> str:
     messages: list[dict[str, Any]] = [
-        {"role": "system", "content": SYSTEM_PROMPT},
+        {"role": "system", "content": _get_system_prompt()},
         {"role": "user", "content": message},
     ]
 
@@ -176,6 +184,37 @@ def _run_tool(user_id: int, function_name: str, arguments: dict[str, Any]) -> di
         return _build_stats_payload(calculations, limit, operation)
 
     raise ValueError(f"Unknown tool: {function_name}")
+
+
+def _get_system_prompt() -> str:
+    skill_prompt = _load_skill_prompt()
+    if not skill_prompt:
+        return DEFAULT_SYSTEM_PROMPT
+
+    return (
+        "You are the Number Adder chat agent.\n\n"
+        "Use the following skill instructions when deciding how to answer and which tools to call.\n\n"
+        f"{skill_prompt}"
+    )
+
+
+def _load_skill_prompt() -> str:
+    try:
+        content = SKILL_PATH.read_text(encoding="utf-8")
+    except OSError:
+        return ""
+
+    return _strip_frontmatter(content).strip()
+
+
+def _strip_frontmatter(content: str) -> str:
+    if not content.startswith("---"):
+        return content
+
+    parts = content.split("---", 2)
+    if len(parts) < 3:
+        return content
+    return parts[2]
 
 
 def _build_stats_payload(
