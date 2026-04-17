@@ -25,12 +25,24 @@ import sys
 from pathlib import Path
 from typing import Any
 
+import ssl
 import urllib.error
 import urllib.parse
 import urllib.request
 
+import certifi
+
 DEFAULT_BASE_URL = "https://number-adder.com"
 DEFAULT_CONFIG_PATH = Path("~/.config/na/config.json").expanduser()
+
+
+def _ssl_context() -> ssl.SSLContext:
+    """Return an SSL context with a known-good CA bundle.
+
+    On some macOS Python builds, the system trust store isn't wired up, leading to
+    CERTIFICATE_VERIFY_FAILED. Using certifi fixes that.
+    """
+    return ssl.create_default_context(cafile=certifi.where())
 
 
 def _load_config(path: Path = DEFAULT_CONFIG_PATH) -> dict[str, Any]:
@@ -78,6 +90,18 @@ def _get_api_key(args_api_key: str | None) -> str | None:
     return None
 
 
+def _get_bearer_token(args_token: str | None) -> str | None:
+    if args_token:
+        return args_token.strip()
+    if os.environ.get("NA_ACCESS_TOKEN"):
+        return os.environ["NA_ACCESS_TOKEN"].strip()
+    cfg = _load_config()
+    v = cfg.get("access_token")
+    if isinstance(v, str) and v.strip():
+        return v.strip()
+    return None
+
+
 def _is_destructive(method: str) -> bool:
     return method.upper() in {"DELETE", "PUT", "PATCH"}
 
@@ -95,12 +119,97 @@ def cmd_config_set(args: argparse.Namespace) -> int:
     key = args.key
     value = args.value
 
-    if key not in {"api_key", "base_url"}:
+    if key not in {"api_key", "base_url", "access_token"}:
         print(f"Unsupported config key: {key}", file=sys.stderr)
         return 2
 
     cfg[key] = value
     _write_config(cfg, path)
+    return 0
+
+
+def _request_json(
+    *,
+    method: str,
+    url: str,
+    headers: dict[str, str] | None = None,
+    data: Any | None = None,
+    timeout: float = 30.0,
+) -> tuple[int, str, dict[str, Any] | str]:
+    h = headers or {}
+    body_bytes = None
+    if data is not None:
+        body_bytes = json.dumps(data).encode("utf-8")
+        h.setdefault("Content-Type", "application/json")
+
+    req = urllib.request.Request(url=url, method=method.upper(), headers=h, data=body_bytes)
+    try:
+        with urllib.request.urlopen(req, timeout=timeout, context=_ssl_context()) as resp:
+            status = int(getattr(resp, "status", 200))
+            raw = resp.read()
+            ct = resp.headers.get("content-type", "") or ""
+        txt = raw.decode("utf-8", errors="replace")
+        if "application/json" in ct and txt:
+            return status, ct, json.loads(txt)
+        return status, ct, txt
+    except urllib.error.HTTPError as e:
+        raw = e.read() if hasattr(e, "read") else b""
+        txt = raw.decode("utf-8", errors="replace")
+        try:
+            obj = json.loads(txt) if txt else {"detail": str(e)}
+            return int(getattr(e, "code", 500) or 500), "application/json", obj
+        except Exception:
+            return int(getattr(e, "code", 500) or 500), "text/plain", txt or str(e)
+
+
+def cmd_auth_register(args: argparse.Namespace) -> int:
+    base_url = _get_base_url(args.base_url)
+    url = f"{base_url}/register"
+    status, _, out = _request_json(
+        method="POST",
+        url=url,
+        data={"email": args.email, "password": args.password},
+        timeout=30.0,
+    )
+    if status >= 200 and status < 300:
+        print(json.dumps(out, indent=2, sort_keys=True))
+        return 0
+    print(json.dumps(out, indent=2, sort_keys=True) if isinstance(out, dict) else str(out), file=sys.stderr)
+    return 1
+
+
+def cmd_auth_login(args: argparse.Namespace) -> int:
+    base_url = _get_base_url(args.base_url)
+    url = f"{base_url}/login"
+    status, _, out = _request_json(
+        method="POST",
+        url=url,
+        data={"email": args.email, "password": args.password},
+        timeout=30.0,
+    )
+    if not (status >= 200 and status < 300) or not isinstance(out, dict):
+        print(json.dumps(out, indent=2, sort_keys=True) if isinstance(out, dict) else str(out), file=sys.stderr)
+        return 1
+
+    token = out.get("access_token")
+    if not token:
+        print(json.dumps(out, indent=2, sort_keys=True), file=sys.stderr)
+        return 1
+
+    path = Path(args.config_path).expanduser() if args.config_path else DEFAULT_CONFIG_PATH
+    cfg = _load_config(path)
+    cfg["access_token"] = token
+    _write_config(cfg, path)
+    print(json.dumps({"ok": True, "saved": str(path), "token_type": out.get("token_type", "bearer")}, indent=2))
+    return 0
+
+
+def cmd_auth_logout(args: argparse.Namespace) -> int:
+    path = Path(args.config_path).expanduser() if args.config_path else DEFAULT_CONFIG_PATH
+    cfg = _load_config(path)
+    cfg.pop("access_token", None)
+    _write_config(cfg, path)
+    print(json.dumps({"ok": True, "cleared": "access_token", "path": str(path)}, indent=2))
     return 0
 
 
@@ -112,6 +221,7 @@ def cmd_call(args: argparse.Namespace) -> int:
 
     base_url = _get_base_url(args.base_url)
     api_key = _get_api_key(args.api_key)
+    bearer = _get_bearer_token(args.access_token)
 
     if _is_destructive(method) and not args.yes_really:
         print(
@@ -123,6 +233,8 @@ def cmd_call(args: argparse.Namespace) -> int:
     headers: dict[str, str] = {}
     if api_key:
         headers["X-API-Key"] = api_key
+    if bearer:
+        headers["Authorization"] = f"Bearer {bearer}"
 
     # Parse query params: --query k=v (repeatable)
     params: list[tuple[str, str]] = []
@@ -157,7 +269,7 @@ def cmd_call(args: argparse.Namespace) -> int:
 
         req = urllib.request.Request(url=url, method=method, headers=headers, data=body_bytes)
 
-        with urllib.request.urlopen(req, timeout=float(args.timeout)) as resp:
+        with urllib.request.urlopen(req, timeout=float(args.timeout), context=_ssl_context()) as resp:
             status = int(getattr(resp, "status", 200))
             raw = resp.read()
             ct = resp.headers.get("content-type", "") or ""
@@ -206,6 +318,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_call.add_argument("--data-file", default=None, help="Path to JSON file for request body")
     p_call.add_argument("--pretty", action="store_true", help="Pretty-print JSON output")
     p_call.add_argument("--timeout", type=float, default=30.0, help="Request timeout (seconds)")
+    p_call.add_argument("--access-token", default=None, help="Bearer access token override (else NA_ACCESS_TOKEN/config)")
     p_call.add_argument("--yes-really", action="store_true", help="Required for DELETE/PUT/PATCH")
     p_call.set_defaults(func=cmd_call)
 
@@ -218,10 +331,31 @@ def build_parser() -> argparse.ArgumentParser:
     p_show.set_defaults(func=cmd_config_show)
 
     p_set = cfg_sub.add_parser("set", help="Set config key")
-    p_set.add_argument("key", help="api_key|base_url")
+    p_set.add_argument("key", help="api_key|base_url|access_token")
     p_set.add_argument("value", help="Value")
     p_set.add_argument("--config-path", default=None, help="Override config file path")
     p_set.set_defaults(func=cmd_config_set)
+
+    # auth (no browser required)
+    p_auth = sub.add_parser("auth", help="Register/login without a browser")
+    auth_sub = p_auth.add_subparsers(dest="auth_cmd", required=True)
+
+    p_reg = auth_sub.add_parser("register", help="Create an account (email+password)")
+    p_reg.add_argument("email")
+    p_reg.add_argument("password")
+    p_reg.add_argument("--base-url", default=None)
+    p_reg.set_defaults(func=cmd_auth_register)
+
+    p_login = auth_sub.add_parser("login", help="Login (email+password); saves access_token to config")
+    p_login.add_argument("email")
+    p_login.add_argument("password")
+    p_login.add_argument("--base-url", default=None)
+    p_login.add_argument("--config-path", default=None)
+    p_login.set_defaults(func=cmd_auth_login)
+
+    p_logout = auth_sub.add_parser("logout", help="Clear saved access_token")
+    p_logout.add_argument("--config-path", default=None)
+    p_logout.set_defaults(func=cmd_auth_logout)
 
     return p
 

@@ -21,7 +21,9 @@ dependencies = [
     "stripe>=7.0.0",
     "httpx>=0.25.0",
     "psycopg2-binary>=2.9.0",
+    "certifi>=2024.2.2",
 ]
+
 
 [project.scripts]
 number-adder-server = "number_adder.server:main"
